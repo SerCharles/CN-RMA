@@ -131,4 +131,3 @@ class CustomScanNetDataset(Custom3DDataset):
                     save_results(output, voxel_size, save_path)
         return {}
     
-        
