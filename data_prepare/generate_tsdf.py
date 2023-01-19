@@ -12,13 +12,13 @@ import torch.multiprocessing
 from data_utils import *
 from scannet_simple_loader import *
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Fuse ground truth tsdf')
-    parser.add_argument("--data_path", type=str, default='/home/sgl/ScanNet')
-    parser.add_argument("--save_name", type=str, default='partial_tsdf_9')
+    parser.add_argument("--data_path", type=str, default='/data4/sgl/ScanNet')
+    parser.add_argument("--save_name", type=str, default='all_tsdf_9')
     parser.add_argument("--save_mesh", type=int, default=0)
     parser.add_argument("--test", type=int, default=0)
-    parser.add_argument("--all", type=int, default=0)
 
     #arguments used in TSDF Fusion
     parser.add_argument('--max_depth', default=3., type=float,
@@ -32,6 +32,7 @@ def parse_args():
 
     parser.add_argument('--n_proc', type=int, default=16, help='#processes launched to process scenes.')
     parser.add_argument('--n_gpu', type=int, default=2, help='#number of gpus')
+
     parser.add_argument('--num_workers', type=int, default=8)
     parser.add_argument('--loader_num_workers', type=int, default=8)
     return parser.parse_args()
@@ -221,12 +222,7 @@ def process_tsdf_data(args, scannet_files):
         args [arguments]: [the global arguments]
         scannet_files [list]: [list of scene ids]
     """
-    if args.all:
-        image_data_path = os.path.join(args.data_path, 'posed_images')
-    else:
-        image_data_path = os.path.join(args.data_path, 'posed_images_partial')
-
-    
+    image_data_path = os.path.join(args.data_path, 'posed_images')
     for scene_id in tqdm(scannet_files):
         if os.path.exists(os.path.join(args.save_path, scene_id, 'fragments.pkl')):
             continue
@@ -300,6 +296,7 @@ def main(args):
     scene_ids.extend(scenes_val)
     scene_ids.extend(scenes_test)
     scene_ids.sort() 
+    
     
     all_proc = args.n_proc * args.n_gpu
     ray.init(num_cpus=all_proc * (args.num_workers + 1), num_gpus=args.n_gpu)

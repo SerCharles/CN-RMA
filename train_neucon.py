@@ -23,20 +23,18 @@ from os import path as osp
 
 from mmdet import __version__ as mmdet_version
 from mmdet3d import __version__ as mmdet3d_version
-from mmdet3d.apis import train_model
 from mmdet3d.datasets import build_dataset
 from mmdet3d.models import build_model
 from mmdet3d.utils import collect_env, get_root_logger
 from mmdet.apis import set_random_seed
 from mmseg import __version__ as mmseg_version
 from mmdet.utils import get_device
-import projects.mvsdetection
-
+from projects.mvsdetection.apis.train import train_model
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a detector')
-    parser.add_argument('--config', help='train config file path', type=str, default='projects/configs/atlas/atlas.py')
-    parser.add_argument('--work-dir', help='the dir to save logs and models', type=str, default='work_dirs/atlas')
+    parser.add_argument('--config', help='train config file path', type=str, default='projects/configs/neucon/neucon_pretrain.py')
+    parser.add_argument('--work-dir', help='the dir to save logs and models', type=str, default='work_dirs/neucon')
     parser.add_argument(
         '--resume-from', help='the checkpoint file to resume from')
     parser.add_argument(

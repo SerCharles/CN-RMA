@@ -10,19 +10,20 @@ from mmcv.parallel import MMDataParallel, MMDistributedDataParallel
 from mmcv.runner import (get_dist_info, init_dist, load_checkpoint,
                          wrap_fp16_model)
 
-from mmdet3d.apis import single_gpu_test
-from mmdet3d.datasets import build_dataloader, build_dataset
+from mmdet3d.datasets import build_dataset
 from mmdet3d.models import build_model
-from mmdet.apis import multi_gpu_test, set_random_seed
+from mmdet.apis import set_random_seed
 from mmdet.datasets import replace_ImageToTensor
-import projects.mvsdetection
+from projects.mvsdetection.apis.builder import build_dataloader 
+from projects.mvsdetection.apis.test import single_gpu_test, multi_gpu_test
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
         description='MMDet test (and eval) a model')
-    parser.add_argument('--config', help='test config file path', type=str, default='projects/configs/atlas/atlas.py')
-    parser.add_argument('--checkpoint', help='checkpoint file', type=str, default='work_dirs/atlas/epoch_300.pth')
-    parser.add_argument('--work-dir', help='the dir to save logs and models', type=str, default='work_dirs/atlas')
+    parser.add_argument('--config', help='test config file path', type=str, default='projects/configs/neucon/neucon.py')
+    parser.add_argument('--checkpoint', help='checkpoint file', type=str, default='work_dirs/neucon/epoch_30.pth')
+    parser.add_argument('--work-dir', help='the dir to save logs and models', type=str, default='work_dirs/neucon')
     parser.add_argument('--out', help='output result file in pickle format')
     parser.add_argument(
         '--fuse-conv-bn',
@@ -159,7 +160,6 @@ def main():
         samples_per_gpu = max(
             [ds_cfg.pop('samples_per_gpu', 1) for ds_cfg in cfg.data.test])
 
-
     # init distributed env first, since logger depends on the dist info.
     if args.launcher == 'none':
         distributed = False
@@ -229,7 +229,7 @@ def main():
                     'rule'
             ]:
                 eval_kwargs.pop(key, None)
-            #eval_kwargs.update(dict(metric=args.eval, **kwargs))
+            #eval_kwargs.update(dict(**kwargs))
             print(dataset.evaluate(outputs, **eval_kwargs))
 
 
