@@ -58,7 +58,7 @@ class ScanNetDataset(torch.utils.data.Dataset):
         depth_image[depth_image > self.max_depth] = 0
         color_image = cv2.cvtColor(cv2.imread(image_path), cv2.COLOR_BGR2RGB)
         color_image = cv2.resize(color_image, (depth_image.shape[1], depth_image.shape[0]), interpolation=cv2.INTER_AREA)
-        if extrinsic[0][0] == np.inf or extrinsic[0][0] == -np.inf or extrinsic[0][0] == np.nan:
+        if not np.all(np.isfinite(extrinsic)):
             valid = False 
         else: 
             valid = True

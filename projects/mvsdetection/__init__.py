@@ -9,7 +9,7 @@
 
 from .datasets.atlas_dataset import AtlasScanNetDataset
 from .datasets.tsdf import TSDF
-from .datasets.pipelines import (ResizeImage, IntrinsicsPoseToProjection, RandomTransformSpace, AtlasToTensor, AtlasCollectData)
+from .datasets.pipelines import (ResizeImage, IntrinsicsPoseToProjection, RandomTransformSpace, TestTransformSpace, AtlasToTensor, AtlasCollectData)
 from .models.atlas.atlas_head import TSDFHead
 from .models.atlas.atlas import Atlas
 from .models.atlas.backbone2d import FPNFeature

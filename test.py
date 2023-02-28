@@ -21,8 +21,8 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description='MMDet test (and eval) a model')
     parser.add_argument('--config', help='test config file path', type=str, default='projects/configs/atlas/atlas.py')
-    parser.add_argument('--checkpoint', help='checkpoint file', type=str, default='work_dirs/atlas/epoch_300.pth')
-    parser.add_argument('--work-dir', help='the dir to save logs and models', type=str, default='work_dirs/atlas')
+    parser.add_argument('--checkpoint', help='checkpoint file', type=str, default='/data4/sgl/mine/atlas/epoch_180.pth')
+    parser.add_argument('--work-dir', help='the dir to save logs and models', type=str, default='/data4/sgl/mine/atlas')
     parser.add_argument('--out', help='output result file in pickle format')
     parser.add_argument(
         '--fuse-conv-bn',

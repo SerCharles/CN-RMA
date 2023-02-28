@@ -15,38 +15,39 @@ from projects.mvsdetection.datasets.tsdf import TSDF
 
 @DATASETS.register_module()
 class AtlasScanNetDataset(Custom3DDataset):
-    def __init__(self, data_root, ann_file, pipeline=None, classes=None, test_mode=False, num_frames=50):
+    def __init__(self, data_root, ann_file, pipeline=None, classes=None, test_mode=False, num_frames=50, voxel_size=0.04):
         super().__init__(data_root=data_root, ann_file=ann_file, pipeline=pipeline, classes=classes,
                          modality={'use_depth':True, 'use_camera':True}, box_type_3d='Depth', filter_empty_gt=False, test_mode=test_mode)
         self.num_frames = num_frames
+        self.voxel_size = voxel_size
     
     def read_scene_volumes(self, data_path, scene, voxel_size, vol_origin):
-        full_tsdf_list = []
+        full_tsdf_dict = {}
         for i in range(3):
-            tsdf_path = os.path.join(data_path, scene, 'full_tsdf_layer{}.npz'.format(i))
             current_voxel_size = voxel_size * (2 ** i)
-            full_tsdf = TSDF.load(tsdf_path, current_voxel_size, vol_origin)
-            full_tsdf_list.append(full_tsdf)
-        return full_tsdf_list
+            current_file_key = 'tsdf_gt_' + str(int(current_voxel_size * 100)).zfill(3) #004, 008, 016
+            raw_tsdf = np.load(os.path.join(data_path, scene, 'full_tsdf_layer{}.npz'.format(i)), allow_pickle=True)
+            vol_origin = torch.as_tensor(vol_origin).view(1, 3)
+            tsdf_vol = torch.as_tensor(raw_tsdf.f.arr_0)
+            full_tsdf = TSDF(voxel_size, vol_origin, tsdf_vol) 
+            full_tsdf_dict[current_file_key] = full_tsdf
+        return full_tsdf_dict
+    
             
     def get_data_info(self, index):
         info = self.data_infos[index]
         imgs = [] 
         extrinsics = []
         intrinsics = []
+        
         scene = info['scene']
-        voxel_size = info['voxel_size']
-        vol_origin = info['vol_origin']
-        tsdf_list = self.read_scene_volumes(os.path.join(self.data_root, 'all_tsdf_9'), scene, voxel_size, vol_origin)
+        image_ids = info['image_ids']
+        
+        tsdf_dict = self.read_scene_volumes(os.path.join(self.data_root, 'all_tsdf_9'), scene, info['voxel_size'], info['vol_origin'])
         annos = self.get_ann_info(index)
-        image_ids = list(range(info['n_images']))
-        random.shuffle(image_ids)
+        
 
-        loaded_num = 0
         for i, vid in enumerate(image_ids):
-            if self.num_frames > 0 and loaded_num >= self.num_frames:
-                break
-            
             vid = str(int(vid)).zfill(5)
             img_path = os.path.join(self.data_root, 'posed_images', scene, vid + '.jpg')
             extrinsic_path = os.path.join(self.data_root, 'posed_images', scene, vid + '.txt')
@@ -57,24 +58,21 @@ class AtlasScanNetDataset(Custom3DDataset):
             intrinsic = intrinsic.astype(np.float32)
             extrinsic = np.loadtxt(extrinsic_path)
             axis_align_matrix = annos['axis_align_matrix']
-            
-            if extrinsic[0][0] == np.inf or extrinsic[0][0] == -np.inf or extrinsic[0][0] == np.nan:
-                continue
-    
             extrinsic = axis_align_matrix @ extrinsic 
             imgs.append(img)
             intrinsics.append(intrinsic)
             extrinsics.append(extrinsic)
-            loaded_num += 1 
             
         
         items = {
+            'scene': scene, 
+            'image_ids': image_ids,
             'imgs': imgs, 
             'intrinsics': intrinsics,
             'extrinsics': extrinsics, 
-            'tsdf_list_full': tsdf_list,
-            'vol_origin': info['vol_origin'],
-            'scene': scene, 
+            'tsdf_dict': tsdf_dict,
+            'voxel_size': info['voxel_size'],
+            'vol_origin': info['vol_origin'],            
         }
         items['ann_info'] = annos 
         return items
@@ -140,6 +138,3 @@ class AtlasScanNetDataset(Custom3DDataset):
             mesh_pred.export(os.path.join(save_path, scene_id, scene_id + '.ply'))
         '''
         return {}
-    
-    def __len__(self):
-        return 4

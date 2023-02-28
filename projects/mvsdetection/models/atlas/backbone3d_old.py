@@ -18,7 +18,20 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from mmdet.models import BACKBONES
-import MinkowskiEngine as ME
+
+
+
+
+def conv3x3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
+    """3x3x3 convolution with padding"""
+    return nn.Conv3d(in_planes, out_planes, kernel_size=3, stride=stride,
+                     padding=dilation, groups=groups, bias=False,
+                     dilation=dilation)
+
+def conv1x1x1(in_planes, out_planes, stride=1):
+    """1x1x1 convolution"""
+    return nn.Conv3d(in_planes, out_planes, kernel_size=1, stride=stride,
+                     bias=False)
 
 
 class BasicBlock3d(nn.Module):
@@ -32,14 +45,13 @@ class BasicBlock3d(nn.Module):
         if groups != 1 or base_width != 64:
             raise ValueError('BasicBlock only supports groups=1 and base_width=64')
         # Both self.conv1 and self.downsample layers downsample the input when stride != 1
-        self.conv1 = ME.MinkowskiConvolution(inplanes, planes, kernel_size=3, stride=stride)
-        self.bn1 = ME.MinkowskiBatchNorm(planes)
-        self.drop1 = ME.MinkowskiDropout(p=drop, inplace=True)
-        self.relu = ME.MinkowskiReLU(inplace=True)
-        
-        self.conv2 = ME.MinkowskiConvolution(planes, planes, kernel=3, stride=1)
-        self.bn2 = ME.MinkowskiBatchNorm(planes)
-        self.drop2 = ME.MinkowskiDropout(drop, True)
+        self.conv1 = conv3x3x3(inplanes, planes, stride, 1, dilation)
+        self.bn1 = nn.BatchNorm3d(planes)
+        self.drop1 = nn.Dropout(drop, True)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = conv3x3x3(planes, planes, 1, 1, dilation)
+        self.bn2 = nn.BatchNorm3d(planes)
+        self.drop2 = nn.Dropout(drop, True)
         self.downsample = downsample
         self.stride = stride
 

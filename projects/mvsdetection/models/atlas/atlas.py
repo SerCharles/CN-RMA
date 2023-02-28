@@ -13,11 +13,13 @@ class Atlas(nn.Module):
                  train_cfg=None, test_cfg=None, pretrained=None):
         super(Atlas, self).__init__()
         # networks
-        self.backbone2d = nn.Sequential(
-            build_backbone(resnet),
-            build_backbone(fpn),
-            build_backbone(feature_2d)
-        )
+        self.resnet = build_backbone(resnet)
+        self.fpn = build_backbone(fpn)
+        self.feature_2d = build_backbone(feature_2d)
+        self.resnet.init_weights()
+        self.fpn.init_weights()
+        
+        
         self.backbone3d = build_backbone(backbone_3d)
         self.tsdf_head = build_head(tsdf_head)
 
@@ -32,6 +34,8 @@ class Atlas(nn.Module):
         self.origin = torch.tensor(origin).view(1,3)
         self.backbone2d_stride = backbone2d_stride
         self.initialize_volume()
+        
+        
 
     def initialize_volume(self):
         """ Reset the accumulators.
@@ -46,6 +50,12 @@ class Atlas(nn.Module):
     def normalizer(self, x):
         """ Normalizes the RGB images to the input range"""
         return (x - self.pixel_mean.type_as(x)) / self.pixel_std.type_as(x)
+
+    def backbone2d(self, image):
+        x = self.resnet(image)
+        x = self.fpn(x)
+        x = self.feature_2d(x)
+        return x
 
     def inference1(self, projection, image=None, feature=None):
         """ Backprojects image features into 3D and accumulates them.
@@ -111,7 +121,8 @@ class Atlas(nn.Module):
     def forward_train(self, inputs):
         self.voxel_dim = self.voxel_dim_train
         self.initialize_volume()
-        images = inputs['imgs']
+        '''
+        image = inputs['imgs']
         projection = inputs['projection']
 
         # get targets if they are in the batch
@@ -120,31 +131,68 @@ class Atlas(nn.Module):
 
 
         # transpose batch and time so we can accumulate sequentially
-        images = images.transpose(0,1)
+        images = image.transpose(0,1)
         projections = projection.transpose(0,1)
 
 
         # run all images through 2d cnn together to share batchnorm stats
-        old_shape = images.shape
-        images = images.reshape(images.shape[0]*images.shape[1], *images.shape[2:])
-        images = self.normalizer(images)
-        features = self.backbone2d(images)
+        image = images.reshape(images.shape[0]*images.shape[1], *images.shape[2:])
+        image = self.normalizer(image)
+        
+        # CUDA MEMORY NOT ENOUGH
+        image_size = int(image.shape[0] // 5)
+        features = []
+        for i in range(5):
+            image_now = image[i * image_size : (i + 1) * image_size, :, :, :]
+            feature_now = self.backbone2d(image_now)
+            features.append(feature_now)
+        features = torch.cat(features, dim=0)
+        
+        
+        #original method
+        #features = self.backbone2d(image)
+        
+        
+        
         # reshape back
-        features = features.view(old_shape[0], old_shape[1], *features.shape[1:])
+        features = features.view(images.shape[0], images.shape[1], *features.shape[1:])
 
         for projection, feature in zip(projections, features):
             self.inference1(projection, feature=feature)
 
         # run 3d cnn
         outputs3d, losses3d = self.inference2(targets3d)
-
+        '''
+        
+        
+        #results = self.post_process(outputs3d, inputs)
+        results = self.post_process({}, inputs)
+        import os 
+        save_path = '/data4/sgl/mine/atlas/results'
+        if not os.path.exists(save_path):
+            os.makedirs(save_path) 
+        for result in results:
+            scene_id = result['scene']
+            #tsdf_pred = result['scene_tsdf']
+            #mesh_pred = tsdf_pred.get_mesh()
+            if not os.path.exists(os.path.join(save_path, scene_id)):
+                os.makedirs(os.path.join(save_path, scene_id))
+            #tsdf_pred.save(os.path.join(save_path, scene_id, scene_id + '.npz'))
+            #mesh_pred.export(os.path.join(save_path, scene_id, scene_id + '.ply'))
+            kebab = result['kebab'].get_mesh()
+            kebab.export(os.path.join(save_path, scene_id, scene_id + '_gt.ply'))
+        
+        
+        
+        
         return losses3d
     
     def forward_test(self, inputs):
         self.voxel_dim = self.voxel_dim_test
         self.initialize_volume()
 
-        images = inputs['imgs']
+        '''
+        image = inputs['imgs']
         projection = inputs['projection']
 
         # get targets if they are in the batch
@@ -152,14 +200,56 @@ class Atlas(nn.Module):
         targets3d = targets3d if targets3d else None
 
         # transpose batch and time so we can accumulate sequentially
-        images = images.transpose(0,1)
+        images = image.transpose(0,1)
         projections = projection.transpose(0,1)
 
-        for image, projection in zip(images, projections):
+        for projection, image in zip(projections, images):
             self.inference1(projection, image=image)
+        '''
+        image = inputs['imgs']
+        projection = inputs['projection']
 
+        # get targets if they are in the batch
+        targets3d = inputs['tsdf_list']
+        targets3d = targets3d if targets3d else None
+
+
+        # transpose batch and time so we can accumulate sequentially
+        images = image.transpose(0,1)
+        projections = projection.transpose(0,1)
+
+
+        # run all images through 2d cnn together to share batchnorm stats
+        image = images.reshape(images.shape[0]*images.shape[1], *images.shape[2:])
+        image = self.normalizer(image)
+        
+        # CUDA MEMORY NOT ENOUGH
+        image_size = int(image.shape[0] // 5)
+        features = []
+        for i in range(5):
+            image_now = image[i * image_size : (i + 1) * image_size, :, :, :]
+            feature_now = self.backbone2d(image_now)
+            features.append(feature_now)
+        features = torch.cat(features, dim=0)
+        
+        
+        #original method
+        #features = self.backbone2d(image)
+        
+        
+        
+        # reshape back
+        features = features.view(images.shape[0], images.shape[1], *features.shape[1:])
+
+        for projection, feature in zip(projections, features):
+            self.inference1(projection, feature=feature)
+        
+        
+        
+        
         # run 3d cnn
         outputs3d, losses3d = self.inference2(targets3d)
+        print(losses3d)
         
         results = self.post_process(outputs3d, inputs)
         
@@ -175,20 +265,30 @@ class Atlas(nn.Module):
                 os.makedirs(os.path.join(save_path, scene_id))
             tsdf_pred.save(os.path.join(save_path, scene_id, scene_id + '.npz'))
             mesh_pred.export(os.path.join(save_path, scene_id, scene_id + '.ply'))
+            kebab = result['kebab'].get_mesh()
+            kebab.export(os.path.join(save_path, scene_id, scene_id + '_gt.ply'))
         
         return results
 
     def post_process(self, outputs, inputs):
         key = 'scene_tsdf_004'
         outs = []
-        batch_size = len(outputs[key])
+        #batch_size = len(outputs[key])
+        batch_size = 1
 
         for i in range(batch_size):
             scene_id = inputs['scene'][i]
-            tsdf = TSDF(self.voxel_size, self.origin, outputs[key][i].squeeze(0))
+            #tsdf = TSDF(self.voxel_size, self.origin, outputs[key][i].squeeze(0))
+            offset = inputs['offset'][i].view(1, 3)
+            #tsdf.origin = offset
+            
             out = {}
             out['scene'] = scene_id
-            out['scene_tsdf'] = tsdf
+            #out['scene_tsdf'] = tsdf
+            
+            kebab = TSDF(self.voxel_size, self.origin, inputs['tsdf_list']['tsdf_gt_004'][i].squeeze(0))
+            kebab.origin = offset
+            out['kebab'] = kebab
             outs.append(out)
 
         return outs
@@ -309,15 +409,17 @@ class Atlas(nn.Module):
         for i in range(len(data['gt_bboxes_3d'])):
             data['gt_bboxes_3d'][i] = data['gt_bboxes_3d'][i].to(device)
 
-        batch_size = len(data['tsdf_list'])
-        n_scales = len(data['tsdf_list'][0])
+        if 'offset' in data.keys():
+            data['offset'] = torch.stack(data['offset'], dim=0)
+
+        batch_size = len(data['tsdf_dict'])
+        voxel_sizes = [int(key[8:]) for key in data['tsdf_dict'][0].keys()] #4, 8, 16
         real_tsdf_list = {}
-        for i in range(n_scales):
+        for voxel_size in voxel_sizes:
             tsdf_list = []
-            voxel_size = self.voxel_size * (2 ** i)
-            tsdf_key = 'tsdf_gt_' + str(int(voxel_size * 100)).zfill(3) #004, 008, 016
+            tsdf_key = 'tsdf_gt_' + str(voxel_size).zfill(3) #004, 008, 016
             for j in range(batch_size):
-                tsdf_list.append(data['tsdf_list'][j][i].tsdf_vol.unsqueeze(0)) #1 * X * Y * Z
+                tsdf_list.append(data['tsdf_dict'][j][tsdf_key].tsdf_vol.unsqueeze(0)) #1 * X * Y * Z
             tsdf_list = torch.stack(tsdf_list, dim=0) #B * 1 * X * Y * Z
             tsdf_list = tsdf_list.to(device) 
             real_tsdf_list[tsdf_key] = tsdf_list 

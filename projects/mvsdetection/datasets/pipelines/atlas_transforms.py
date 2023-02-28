@@ -26,18 +26,15 @@ from mmcv.parallel import DataContainer as DC
 from projects.mvsdetection.datasets.tsdf import TSDF
 
 
+
+
+
 @PIPELINES.register_module()
 class AtlasToTensor(object):
     def __call__(self, data):
         data['imgs'] = torch.Tensor(np.stack(data['imgs']).transpose([0, 3, 1, 2])) #N * C * H * w
         data['intrinsics'] = torch.Tensor(np.stack(data['intrinsics'])) #N * 3 * 3
         data['extrinsics'] = torch.Tensor(np.stack(data['extrinsics'])) #N * 4 * 4
-        '''
-        if 'tsdf_list_full' in data.keys():
-            for i in range(len(data['tsdf_list_full'])):
-                if not torch.is_tensor(data['tsdf_list_full'][i]):
-                    data['tsdf_list_full'][i] = torch.Tensor(data['tsdf_list_full'][i])
-        '''
         if 'ann_info' in data.keys():
             data['gt_bboxes_3d'] = data['ann_info']['gt_bboxes_3d']
             data['gt_labels_3d'] = torch.Tensor(data['ann_info']['gt_labels_3d']).long()
@@ -51,8 +48,10 @@ class AtlasCollectData(object):
         result = {}
         result['imgs'] = DC(data['imgs'])
         result['projection'] = DC(data['projection'])
-        result['tsdf_list'] = DC(data['tsdf_list_full'], cpu_only=True)
+        result['tsdf_dict'] = DC(data['tsdf_dict'], cpu_only=True)
         result['scene'] = DC(data['scene'], cpu_only=True)
+        if 'offset' in data.keys():
+            result['offset'] = DC(data['offset'])
         if 'gt_bboxes_3d' in data.keys():
             result['gt_bboxes_3d'] = DC(data['gt_bboxes_3d'], cpu_only=True)
             result['gt_labels_3d'] = DC(data['gt_labels_3d'])
@@ -99,13 +98,16 @@ class ResizeImage(object):
     def __repr__(self):
         return self.__class__.__name__ + '(size={0})'.format(self.size)
     
+
 @PIPELINES.register_module()
 class IntrinsicsPoseToProjection(object):
     """ Convert intrinsics and extrinsics matrices to a single projection matrix"""
     def __call__(self, data):
         data['projection'] = []
         for i in range(len(data['intrinsics'])):
-            projection = data['intrinsics'][i] @ data['extrinsics'][i].inverse()[:3,:]
+            intrinsic = data['intrinsics'][i]
+            extrinsic = data['extrinsics'][i]
+            projection = intrinsic @ extrinsic.inverse()[:3, :]
             data['projection'].append(projection)
         data['projection'] = torch.stack(data['projection']) #N * 3 * 4
         data.pop('intrinsics')
@@ -122,17 +124,20 @@ def transform_space(data, transform, voxel_dim, origin):
     for i in range(len(data['extrinsics'])):
         data['extrinsics'][i] = transform.inverse() @ data['extrinsics'][i]
 
-    for i in range(len(data['tsdf_list_full'])):
-        scale = 2 ** i
+    voxel_sizes = [int(key[8:]) for key in data['tsdf_dict']] #4, 8, 16
+
+    for voxel_size in voxel_sizes:
+        scale = voxel_size / min(voxel_sizes)
         vd = [int(vd / scale) for vd in voxel_dim]
-        data['tsdf_list_full'][i] = data['tsdf_list_full'][i].transform(transform, vd, origin)
+        key = 'tsdf_gt_' + str(voxel_size).zfill(3)
+        data['tsdf_dict'][key] = data['tsdf_dict'][key].transform(transform, vd, origin)
     return data
 
 @PIPELINES.register_module()
 class RandomTransformSpace(object):
     """ Apply a random 3x4 linear transform to the world coordinate system."""
 
-    def __init__(self, voxel_dim, voxel_size, random_rotation=True, random_translation=True,
+    def __init__(self, voxel_dim, random_rotation=True, random_translation=True,
                  paddingXY=1.5, paddingZ=.25, origin=[0,0,0]):
         """
         Args:
@@ -146,7 +151,6 @@ class RandomTransformSpace(object):
         """
 
         self.voxel_dim = voxel_dim
-        self.voxel_size = voxel_size
         self.origin = origin
         self.random_rotation = random_rotation
         self.random_translation = random_translation
@@ -155,7 +159,7 @@ class RandomTransformSpace(object):
         self.padding_end = torch.tensor([paddingXY, paddingXY, 0])
 
     def __call__(self, data):
-        tsdf = data['tsdf_list_full'][0]
+        tsdf = data['tsdf_dict']['tsdf_gt_004']
 
         # construct rotaion matrix about z axis
         if self.random_rotation:
@@ -171,7 +175,7 @@ class RandomTransformSpace(object):
         xmin, ymin, zmin = tsdf.origin[0]
         xmax, ymax, zmax = tsdf.origin[0] + voxel_dim
         corners2d = torch.tensor([[xmin, xmin, xmax, xmax],
-                                  [ymin, ymax, ymin, ymax]])
+                                  [ymin, ymax, ymin, ymax]], dtype=torch.float32)
 
         # rotate corners in plane
         corners2d = R @ corners2d
@@ -192,12 +196,38 @@ class RandomTransformSpace(object):
             t = torch.rand(3)
         else:
             t = .5
-        t = t*start + (1-t)*end
+        t = t*start + (1-t) * end
             
         T = torch.eye(4)
         T[:2,:2] = R
         T[:3,3] = -t
+
+        data['offset'] = -t
         return transform_space(data, T.inverse(), self.voxel_dim, self.origin)
 
     def __repr__(self):
         return self.__class__.__name__
+    
+
+
+@PIPELINES.register_module()
+class TestTransformSpace(object):
+    """ See transform_space"""
+
+    def __init__(self, voxel_dim, origin):
+        self.voxel_dim = voxel_dim
+        self.origin = origin
+
+    def __call__(self, data):
+        T = torch.eye(4)
+        voxel_size = data['tsdf_dict']['tsdf_gt_004'].voxel_size 
+        origin = data['tsdf_dict']['tsdf_gt_004'].origin
+        shift = torch.tensor([.5, .5, .5]) // voxel_size
+        offset = origin - shift * voxel_size
+        T[:3, 3] = offset
+        data['offset'] = offset
+        return transform_space(data, T, self.voxel_dim, self.origin)
+
+    def __repr__(self):
+        return self.__class__.__name__
+    

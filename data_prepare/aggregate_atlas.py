@@ -78,11 +78,9 @@ class ScanNetData(object):
         def process_single_scene(sample_idx):
             print(f'{self.split} sample_idx: {sample_idx}')
             tsdf_path = os.path.join(self.root_dir, 'all_tsdf_9', sample_idx)
-            pkl_path = os.path.join(tsdf_path, 'tsdf_info.pkl')
+            pkl_path = os.path.join(tsdf_path, 'single_fragment_info.pkl')
             info = mmcv.load(pkl_path)
-            info['scene'] = sample_idx
-            n_images = len([_ for _ in os.listdir(os.path.join(self.root_dir, 'posed_images', sample_idx)) if _.endswith(".jpg")])
-            info['n_images'] = n_images
+
             if has_label:
                 annotations = {}
                 # box is of shape [k, 6 + class]

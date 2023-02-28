@@ -4,37 +4,15 @@ from torch import nn
 from torch.nn import functional as F
 from mmdet.models import BACKBONES
 
-def get_norm_2d(norm, out_channels):
-    """ Get a normalization module for 3D tensors
-
-    Args:
-        norm: (str or callable)
-        out_channels
-
-    Returns:
-        nn.Module or None: the normalization layer
-    """
-
-    if isinstance(norm, str):
-        if len(norm) == 0:
-            return None
-        norm = {
-            "BN": nn.BatchNorm2d,
-            "GN": lambda channels: nn.GroupNorm(32, channels),
-            "nnSyncBN": nn.SyncBatchNorm,  # keep for debugging
-        }[norm]
-    return norm(out_channels)
-
 
 @BACKBONES.register_module()
 class FPNFeature(nn.Module):
     """ Converts feature pyrimid to singe feature map (from Detectron2)"""
     
-    def __init__(self, feature_strides, feature_channels, norm='BN', output_dim=32, output_stride=4):
+    def __init__(self, feature_strides, feature_channels, output_dim=32, output_stride=4):
         super().__init__()
         self.feature_strides = feature_strides
         self.feature_channels = feature_channels
-        self.norm = norm
         self.scale_heads = nn.ModuleList()
         for i in range(len(self.feature_channels)):
             head_ops = nn.ModuleList()
@@ -42,7 +20,7 @@ class FPNFeature(nn.Module):
                 1, int(np.log2(feature_strides[i]) - np.log2(output_stride))
             )
             for k in range(head_length):
-                batch_normalization = get_norm_2d(self.norm, output_dim)
+                batch_normalization = nn.BatchNorm2d(output_dim)
                 conv = nn.Conv2d(in_channels=feature_channels[i] if k == 0 else output_dim,
                               out_channels=output_dim,
                               kernel_size=3,

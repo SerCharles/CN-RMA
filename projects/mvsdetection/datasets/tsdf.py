@@ -66,7 +66,7 @@ class TSDF():
         np.savez_compressed(fname, **data)
 
     @classmethod
-    def load(cls, fname, voxel_size, origin):
+    def load(cls, fname):
         """ Load a tsdf from disk (stored as npz).
 
         Args:
@@ -75,9 +75,9 @@ class TSDF():
             TSDF
         """
         with np.load(fname) as data:
-            voxel_size = voxel_size
-            origin = torch.as_tensor(origin).view(1,3)
-            tsdf_vol = torch.as_tensor(data['arr_0'])
+            voxel_size = data['voxel_size'].item()
+            origin = torch.as_tensor(data['origin']).view(1,3)
+            tsdf_vol = torch.as_tensor(data['tsdf'])
             ret = cls(voxel_size, origin, tsdf_vol)
         return ret
 
