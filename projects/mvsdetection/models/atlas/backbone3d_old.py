@@ -113,13 +113,13 @@ class ConditionalProjection(nn.Module):
 
 
 @BACKBONES.register_module()
-class Backbone3D(nn.Module):
+class Backbone3DOLD(nn.Module):
     """ 3D network to refine feature volumes"""
 
     def __init__(self, channels=[32,64,128], layers_down=[1,2,3],
                  layers_up=[3,3,3], drop=0, zero_init_residual=True,
                  cond_proj=True):
-        super(Backbone3D, self).__init__()
+        super(Backbone3DOLD, self).__init__()
 
         self.cond_proj = cond_proj
 

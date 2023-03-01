@@ -17,166 +17,70 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from mmdet.models import BACKBONES
 import MinkowskiEngine as ME
-
-
-class BasicBlock3d(nn.Module):
-    """ 3x3x3 Resnet Basic Block"""
-    expansion = 1
-    __constants__ = ['downsample']
-
-    def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1,
-                 base_width=64, dilation=1, drop=0):
-        super(BasicBlock3d, self).__init__()
-        if groups != 1 or base_width != 64:
-            raise ValueError('BasicBlock only supports groups=1 and base_width=64')
-        # Both self.conv1 and self.downsample layers downsample the input when stride != 1
-        self.conv1 = ME.MinkowskiConvolution(inplanes, planes, kernel_size=3, stride=stride)
-        self.bn1 = ME.MinkowskiBatchNorm(planes)
-        self.drop1 = ME.MinkowskiDropout(p=drop, inplace=True)
-        self.relu = ME.MinkowskiReLU(inplace=True)
-        
-        self.conv2 = ME.MinkowskiConvolution(planes, planes, kernel=3, stride=1)
-        self.bn2 = ME.MinkowskiBatchNorm(planes)
-        self.drop2 = ME.MinkowskiDropout(drop, True)
-        self.downsample = downsample
-        self.stride = stride
-
-    def forward(self, x):
-        identity = x
-
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.drop1(out) # drop after both??
-        out = self.relu(out)
-
-        out = self.conv2(out)
-        out = self.bn2(out)
-        out = self.drop2(out) # drop after both??
-
-        if self.downsample is not None:
-            identity = self.downsample(x)
-
-        out += identity
-        out = self.relu(out)
-
-        return out
-
-
-class ConditionalProjection(nn.Module):
-    """ Applies a projected skip connection from the encoder to the decoder
-
-    When condition is False this is a standard projected skip connection
-    (conv-bn-relu).
-
-    When condition is True we only skip the non-masked features
-    from the encoder. To maintin scale we instead skip the decoder features.
-    This was intended to reduce artifacts in unobserved regions,
-    but was found to not be helpful.
-    """
-
-    def __init__(self, n, condition=True):
-        super(ConditionalProjection, self).__init__()
-        # return relu(bn(conv(x)) if mask, relu(bn(y)) otherwise
-        self.conv = conv1x1x1(n, n)
-        self.norm = nn.BatchNorm3d(n)
-        self.relu = nn.ReLU(True)
-        self.condition = condition
-
-    def forward(self, x, y, mask):
-        """
-        Args:
-            x: tensor from encoder
-            y: tensor from decoder
-            mask
-        """
-
-        x = self.conv(x)
-        if self.condition:
-            x = torch.where(mask, x, y)
-        x = self.norm(x)
-        x = self.relu(x)
-        return x
-
+from MinkowskiEngine.modules.resnet_block import BasicBlock
+from mmdet.models import BACKBONES
 
 @BACKBONES.register_module()
 class Backbone3D(nn.Module):
-    """ 3D network to refine feature volumes"""
-
-    def __init__(self, channels=[32,64,128], layers_down=[1,2,3],
-                 layers_up=[3,3,3], drop=0, zero_init_residual=True,
-                 cond_proj=True):
+    def __init__(self, in_channels=32, out_channels=[32, 64, 128, 256, 512], layers=[1, 3, 4, 6, 3]):
         super(Backbone3D, self).__init__()
-
-        self.cond_proj = cond_proj
-
-        self.layers_down = nn.ModuleList()
-        self.proj = nn.ModuleList()
-
-        self.layers_down.append(nn.Sequential(*[
-            BasicBlock3d(channels[0], channels[0], drop=drop) 
-            for _ in range(layers_down[0]) ]))
-        self.proj.append( ConditionalProjection(channels[0], cond_proj) )
-        for i in range(1,len(channels)):
-            layer = [nn.Conv3d(channels[i-1], channels[i], 3, 2, 1, bias=False),
-                     nn.BatchNorm3d(channels[i]),
-                     nn.Dropout(drop, True),
-                     nn.ReLU(inplace=True)]
-            layer += [BasicBlock3d(channels[i], channels[i], drop=drop) 
-                      for _ in range(layers_down[i])]
-            self.layers_down.append(nn.Sequential(*layer))
-            if i<len(channels)-1:
-                self.proj.append( ConditionalProjection(channels[i], cond_proj) )
-
-        self.proj = self.proj[::-1]
-
-        channels = channels[::-1]
-        self.layers_up_conv = nn.ModuleList()
-        self.layers_up_res = nn.ModuleList()
-        for i in range(1,len(channels)):
-            self.layers_up_conv.append( conv1x1x1(channels[i-1], channels[i]) )
-            self.layers_up_res.append(nn.Sequential( *[
-                BasicBlock3d(channels[i], channels[i], drop=drop) 
-                for _ in range(layers_up[i-1]) ]))
-
-        # Zero-initialize the last BN in each residual branch,
-        # so that the residual branch starts with zeros, and each 
-        # residual block behaves like an identity. This improves the 
-        # model by 0.2~0.3% according to https://arxiv.org/abs/1706.02677
-        if zero_init_residual:
-            for m in self.modules():
-                if isinstance(m, BasicBlock3d):
-                    nn.init.constant_(m.bn2.weight, 0)
+        self.block = BasicBlock
+        self.out_channels = out_channels
+        self.n_outs = len(out_channels)
+        self.inplanes = in_channels
+        self.layers = nn.ModuleList()
+        
+        layer_0 = self._make_layer(self.block, self.out_channels[0], layers[0], stride=1)
+        self.layers.append(layer_0)
+        
+        for i in range(1, self.n_outs):
+            layer = self._make_layer(self.block, self.out_channels[i], layers[i], stride=2)
+            self.layers.append(layer)
 
 
-    def forward(self, x):
-        if self.cond_proj:
-            valid_mask = (x!=0).any(1, keepdim=True).float()
+    def init_weights(self):
+        for m in self.modules():
+            if isinstance(m, ME.MinkowskiConvolution):
+                ME.utils.kaiming_normal_(m.kernel, mode='fan_out', nonlinearity='relu')
 
+            if isinstance(m, ME.MinkowskiBatchNorm):
+                nn.init.constant_(m.bn.weight, 1)
+                nn.init.constant_(m.bn.bias, 0)
 
-        xs = []
-        for layer in self.layers_down:
+    def _make_layer(self, block, planes, blocks, stride=1, dilation=1):
+        downsample = None
+        if stride != 1 or self.inplanes != planes * block.expansion:
+            downsample = nn.Sequential(
+                ME.MinkowskiConvolution(
+                    self.inplanes,
+                    planes * block.expansion,
+                    kernel_size=1,
+                    stride=stride,
+                    dimension=3,
+                ),
+                ME.MinkowskiBatchNorm(planes * block.expansion),
+            )
+        layers = []
+        layers.append(
+            block(
+                self.inplanes,
+                planes,
+                stride=stride,
+                dilation=dilation,
+                downsample=downsample,
+                dimension=3,
+            )
+        )
+        self.inplanes = planes * block.expansion
+        for i in range(1, blocks):
+            layers.append(block(self.inplanes, planes, stride=1, dilation=dilation, dimension=3))
+
+        return nn.Sequential(*layers)
+    
+    def forward(self, x: ME.SparseTensor):
+        outs = []
+        for layer in self.layers:
             x = layer(x)
-            xs.append(x)
-
-        xs = xs[::-1]
-        out = []
-        for i in range(len(self.layers_up_conv)):
-            x = F.interpolate(x, scale_factor=2, mode='trilinear', align_corners=False)
-            x = self.layers_up_conv[i](x)
-            if self.cond_proj:
-                scale = 1/2**(len(self.layers_up_conv)-i-1)
-                mask = F.interpolate(valid_mask, scale_factor=scale)!=0 
-            else:
-                mask = None
-            y = self.proj[i](xs[i+1], x, mask)
-            x = (x + y)/2
-            x = self.layers_up_res[i](x)
-
-            out.append(x)
-
-        return out
-
-
-
+            outs.append(x)
+        return outs
