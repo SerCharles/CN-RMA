@@ -152,7 +152,7 @@ model = dict(
     ),
     tsdf_head=dict(
         type='TSDFHead',
-        input_channels=[32, 64, 128, 256],
+        input_channels=[32, 64, 128, 256, 512],
         n_scales=N_SCALES,
         voxel_size=VOXEL_SIZE,
         loss_weight=LOSS_WEIGHT_TSDF,
