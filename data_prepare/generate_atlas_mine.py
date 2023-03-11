@@ -24,7 +24,7 @@ def parse_args():
     parser.add_argument('--max_depth', default=3., type=float,
                         help='mask out large depth values since they are noisy')
     parser.add_argument('--voxel_size', default=0.04, type=float)
-    parser.add_argument('--window_size', default=50, type=int)
+    parser.add_argument('--window_size', default=30, type=int)
 
     parser.add_argument('--n_proc', type=int, default=4, help='#processes launched to process scenes.')
     parser.add_argument('--n_gpu', type=int, default=1, help='#number of gpus')
@@ -198,8 +198,8 @@ def main(args):
     files = split_list(scene_ids, all_proc)
     ray_worker_ids = []
     for w_idx in range(all_proc):
-        ray_worker_ids.append(process_tsdf_data.remote(args, files[w_idx]))
-
+        #ray_worker_ids.append(process_tsdf_data.remote(args, files[w_idx]))
+        ray_worker_ids.append(change_tsdf_data.remote(args, files[w_idx]))
     results = ray.get(ray_worker_ids)
     
     aggregate_pkl(args)

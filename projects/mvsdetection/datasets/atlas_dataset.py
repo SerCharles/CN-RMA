@@ -20,6 +20,7 @@ class AtlasScanNetDataset(Custom3DDataset):
                          modality={'use_depth':True, 'use_camera':True}, box_type_3d='Depth', filter_empty_gt=False, test_mode=test_mode)
         self.num_frames = num_frames
         self.voxel_size = voxel_size
+        self.data_infos = sorted(self.data_infos, key=lambda x: x['scene'])
     
     def read_scene_volumes(self, data_path, scene, voxel_size, vol_origin):
         full_tsdf_dict = {}
@@ -33,6 +34,19 @@ class AtlasScanNetDataset(Custom3DDataset):
             full_tsdf_dict[current_file_key] = full_tsdf
         return full_tsdf_dict
     
+    def read_atlas_volumes(self, data_path, scene, voxel_size):
+        full_tsdf_dict = {}
+        for i in range(3):
+            current_voxel_size = voxel_size * (2 ** i)
+            current_file_key = 'tsdf_gt_' + str(int(current_voxel_size * 100)).zfill(3) #004, 008, 016
+            old_key = 'tsdf_' + str(int(current_voxel_size * 100)).zfill(2) + '.npz' #04 08 16
+            raw_tsdf = np.load(os.path.join(data_path, scene, old_key), allow_pickle=True)
+            vol_origin = torch.as_tensor(raw_tsdf['origin']).view(1, 3)
+            tsdf_vol = torch.as_tensor(raw_tsdf['tsdf'])
+            full_tsdf = TSDF(current_voxel_size, vol_origin, tsdf_vol) 
+            full_tsdf_dict[current_file_key] = full_tsdf
+        return full_tsdf_dict
+    
             
     def get_data_info(self, index):
         info = self.data_infos[index]
@@ -42,8 +56,18 @@ class AtlasScanNetDataset(Custom3DDataset):
         
         scene = info['scene']
         image_ids = info['image_ids']
+        '''
+        total_image_ids = info['total_image_ids']
+        if self.num_frames > 0:
+            image_ids = random.sample(total_image_ids, self.num_frames)
+        else:
+            image_ids = total_image_ids
+        image_ids.sort()
+        '''
         
-        tsdf_dict = self.read_scene_volumes(os.path.join(self.data_root, 'all_tsdf_9'), scene, info['voxel_size'], info['vol_origin'])
+        
+        #tsdf_dict = self.read_scene_volumes(os.path.join(self.data_root, 'all_tsdf_9'), scene, info['voxel_size'], info['vol_origin'])
+        tsdf_dict = self.read_atlas_volumes(os.path.join(self.data_root, 'atlas'), scene, info['voxel_size'])
         annos = self.get_ann_info(index)
         
 
@@ -58,7 +82,7 @@ class AtlasScanNetDataset(Custom3DDataset):
             intrinsic = intrinsic.astype(np.float32)
             extrinsic = np.loadtxt(extrinsic_path)
             axis_align_matrix = annos['axis_align_matrix']
-            extrinsic = axis_align_matrix @ extrinsic 
+            #extrinsic = axis_align_matrix @ extrinsic 
             imgs.append(img)
             intrinsics.append(intrinsic)
             extrinsics.append(extrinsic)

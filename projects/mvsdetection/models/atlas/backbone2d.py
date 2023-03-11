@@ -36,19 +36,7 @@ class FPNFeature(nn.Module):
                 if feature_strides[i] != output_stride:
                     head_ops.append(nn.Upsample(scale_factor=2, mode="bilinear", align_corners=False))
             self.scale_heads.append(nn.Sequential(*head_ops))
-            
-        for m in self.modules():
-            self.weight_init(m)
 
-    def weight_init(self, m):
-        if isinstance(m, nn.Linear):
-            nn.init.xavier_normal_(m.weight)
-            nn.init.constant_(m.bias, 0)
-        elif isinstance(m, nn.Conv2d):
-            nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-        elif isinstance(m, nn.BatchNorm2d):
-            nn.init.constant_(m.weight, 1)
-            nn.init.constant_(m.bias, 0)
 
     def forward(self, features):
         for i in range(len(self.feature_channels)):

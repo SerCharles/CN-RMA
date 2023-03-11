@@ -11,11 +11,11 @@ N_SCALES = 3
 VOXEL_DIM_TRAIN = [160,160,64]
 VOXEL_DIM_TEST = [256,256,96]
 #
-NUM_FRAMES_TRAIN = 40
-NUM_FRAMES_TEST = 40
+NUM_FRAMES_TRAIN = 30
+NUM_FRAMES_TEST = 30
 RANDOM_ROTATION_3D = True
 RANDOM_TRANSLATION_3D = True
-PAD_XY_3D = 1.0
+PAD_XY_3D = 1.0 
 PAD_Z_3D = 0.25
 LOSS_WEIGHT_TSDF = 1.0
 
@@ -36,10 +36,10 @@ dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = './work_dirs/atlas'
 load_from = None
-resume_from = '/data4/sgl/mine/atlas/epoch_150_old.pth'
+resume_from = None
 workflow = [('train', 1)]
 total_epochs = 200
-evaluation = dict(interval=300, voxel_size=VOXEL_SIZE, save_path=work_dir+'/results')
+evaluation = dict(interval=3000, voxel_size=VOXEL_SIZE, save_path=work_dir+'/results')
 runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
 checkpoint_config = dict(interval=10)
 log_config = dict(
@@ -54,10 +54,9 @@ log_config = dict(
 train_pipeline = [
     dict(type='ResizeImage', size=((640, 480))),
     dict(type='AtlasToTensor'),
-    #dict(type='RandomTransformSpace', voxel_dim=VOXEL_DIM_TRAIN, voxel_size=VOXEL_SIZE, 
-    #     random_rotation=True, random_translation=True, paddingXY=PAD_XY_3D, paddingZ=PAD_Z_3D),
     dict(type='RandomTransformSpace', voxel_dim=VOXEL_DIM_TRAIN, 
-        random_rotation=False, random_translation=False, paddingXY=0.0, paddingZ=0.0),
+        random_rotation=True, random_translation=True, paddingXY=PAD_XY_3D, paddingZ=PAD_Z_3D),
+        #random_rotation=False, random_translation=False, paddingXY=0.0, paddingZ=0.0),
     dict(type='IntrinsicsPoseToProjection'),
     dict(type='AtlasCollectData')
 ]
@@ -65,22 +64,20 @@ train_pipeline = [
 test_pipeline = [
     dict(type='ResizeImage', size=((640, 480))),
     dict(type='AtlasToTensor'),
-    #dict(type='TestTransformSpace', voxel_dim=VOXEL_DIM_TEST, origin=[0, 0, 0]),
-    dict(type='RandomTransformSpace', voxel_dim=VOXEL_DIM_TEST, 
-        random_rotation=False, random_translation=False, paddingXY=0.0, paddingZ=0.0),
+    dict(type='TestTransformSpace', voxel_dim=VOXEL_DIM_TEST, origin=[0, 0, 0]),
     dict(type='IntrinsicsPoseToProjection'),
     dict(type='AtlasCollectData')
 ]
 
 data = dict(
     samples_per_gpu=1,
-    workers_per_gpu=2, 
+    workers_per_gpu=1, 
     train_dataloader=dict(shuffle=True),
     test_dataloader=dict(shuffle=False),
     train=dict(
         type='AtlasScanNetDataset',
         data_root='./data/scannet',
-        ann_file='./data/scannet/scannet_infos_val.pkl',
+        ann_file='./data/scannet/scannet_infos_train.pkl',
         classes=class_names, 
         pipeline=train_pipeline, 
         test_mode=False,
@@ -123,13 +120,14 @@ model = dict(
         num_stages=4,
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        norm_cfg=dict(type='BN', requires_grad=False),
+        norm_cfg=dict(type='BN', requires_grad=True),
         norm_eval=True,
         pretrained='torchvision://resnet50',
         style='pytorch'
     ),
     fpn=dict(
         type='FPN',
+        norm_cfg=dict(type='BN', requires_grad=True),
         in_channels=[256, 512, 1024, 2048],
         out_channels=256,
         num_outs=4
@@ -143,17 +141,17 @@ model = dict(
     ),
     backbone_3d=dict(
         type='Backbone3D',
-        channels=[32, 64, 128, 256], 
+        channels=[32, 64, 128, 256],
         layers_down=[1, 2, 3, 4],
-        layers_up=[3, 2, 1], 
-        drop=0, 
+        layers_up=[3, 2, 1],
+        drop=0.0, 
         zero_init_residual=True,
         cond_proj=False
     ),
     tsdf_head=dict(
         type='TSDFHead',
-        input_channels=[32, 64, 128, 256, 512],
-        n_scales=N_SCALES,
+        input_channels=[32, 64, 128],
+        n_scales=3,
         voxel_size=VOXEL_SIZE,
         loss_weight=LOSS_WEIGHT_TSDF,
         label_smoothing=1.05,
