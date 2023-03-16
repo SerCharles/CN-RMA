@@ -9,17 +9,12 @@ from projects.mvsdetection.datasets.tsdf import TSDF, coordinates
 @DETECTORS.register_module()
 class Atlas(nn.Module):
     def __init__(self, pixel_mean, pixel_std, voxel_size, n_scales, voxel_dim_train, voxel_dim_test, origin, backbone2d_stride, 
-                 resnet, fpn, feature_2d, backbone_3d, tsdf_head, 
+                 backbone2d, feature_2d, backbone_3d, tsdf_head, 
                  train_cfg=None, test_cfg=None, pretrained=None):
         super(Atlas, self).__init__()
         # networks
-        self.resnet = build_backbone(resnet)
-        self.fpn = build_backbone(fpn)
+        self.fpn = build_backbone(backbone2d)
         self.feature_2d = build_backbone(feature_2d)
-        self.resnet.init_weights()
-        self.fpn.init_weights()
-        
-        
         self.backbone3d = build_backbone(backbone_3d)
         self.tsdf_head = build_head(tsdf_head)
 
@@ -52,8 +47,7 @@ class Atlas(nn.Module):
         return (x - self.pixel_mean.type_as(x)) / self.pixel_std.type_as(x)
 
     def backbone2d(self, image):
-        x = self.resnet(image)
-        x = self.fpn(x)
+        x = self.fpn(image)
         x = self.feature_2d(x)
         return x
 
@@ -169,7 +163,7 @@ class Atlas(nn.Module):
         results = self.post_process(outputs3d, inputs)
         #results = self.post_process({}, inputs)
         import os 
-        save_path = '/data4/sgl/mine/atlas/results'
+        save_path = '/data/shenguanlin/atlas/results'
         if not os.path.exists(save_path):
             os.makedirs(save_path) 
         for result in results:
@@ -198,46 +192,21 @@ class Atlas(nn.Module):
         # get targets if they are in the batch
         targets3d = inputs['tsdf_list']
         targets3d = targets3d if targets3d else None
-
+        
         # transpose batch and time so we can accumulate sequentially
         images = image.transpose(0,1)
         projections = projection.transpose(0,1)
-
+        
+        
         for projection, image in zip(projections, images):
             self.inference1(projection, image=image)
+        
+        
         '''
-        image = inputs['imgs']
-        projection = inputs['projection']
-
-        # get targets if they are in the batch
-        targets3d = inputs['tsdf_list']
-        targets3d = targets3d if targets3d else None
-
-
-        # transpose batch and time so we can accumulate sequentially
-        images = image.transpose(0,1)
-        projections = projection.transpose(0,1)
-
-
         # run all images through 2d cnn together to share batchnorm stats
         image = images.reshape(images.shape[0]*images.shape[1], *images.shape[2:])
         image = self.normalizer(image)
-        
-        # CUDA MEMORY NOT ENOUGH
-        
-        image_size = int(image.shape[0] // 5)
-        features = []
-        for i in range(5):
-            image_now = image[i * image_size : (i + 1) * image_size, :, :, :]
-            feature_now = self.backbone2d(image_now)
-            features.append(feature_now)
-        features = torch.cat(features, dim=0)
-        
-        
-        #original method
-        #features = self.backbone2d(image)
-        
-        
+        features = self.backbone2d(image)
         
         # reshape back
         features = features.view(images.shape[0], images.shape[1], *features.shape[1:])
@@ -246,8 +215,6 @@ class Atlas(nn.Module):
             self.inference1(projection, feature=feature)
         '''
         
-        
-        
         # run 3d cnn
         outputs3d, losses3d = self.inference2(targets3d)
         print(losses3d)
@@ -255,7 +222,7 @@ class Atlas(nn.Module):
         results = self.post_process(outputs3d, inputs)
         
         import os 
-        save_path = '/data4/sgl/mine/atlas/results'
+        save_path = '/data/shenguanlin/atlas/results'
         if not os.path.exists(save_path):
             os.makedirs(save_path) 
         for result in results:

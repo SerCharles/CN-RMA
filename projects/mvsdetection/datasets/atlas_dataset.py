@@ -55,15 +55,15 @@ class AtlasScanNetDataset(Custom3DDataset):
         intrinsics = []
         
         scene = info['scene']
-        image_ids = info['image_ids']
-        '''
+        #image_ids = info['image_ids']
+        
         total_image_ids = info['total_image_ids']
         if self.num_frames > 0:
             image_ids = random.sample(total_image_ids, self.num_frames)
         else:
             image_ids = total_image_ids
         image_ids.sort()
-        '''
+        
         
         
         #tsdf_dict = self.read_scene_volumes(os.path.join(self.data_root, 'all_tsdf_9'), scene, info['voxel_size'], info['vol_origin'])

@@ -20,7 +20,26 @@ import torch.nn.functional as F
 from mmdet.models import BACKBONES
 
 
+def get_norm_3d(norm, out_channels):
+    """ Get a normalization module for 3D tensors
 
+    Args:
+        norm: (str or callable)
+        out_channels
+
+    Returns:
+        nn.Module or None: the normalization layer
+    """
+
+    if isinstance(norm, str):
+        if len(norm) == 0:
+            return None
+        norm = {
+            "BN": nn.BatchNorm3d,
+            "GN": lambda channels: nn.GroupNorm(32, channels),
+            "nnSyncBN": nn.SyncBatchNorm,  # keep for debugging
+        }[norm]
+    return norm(out_channels)
 
 def conv3x3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
     """3x3x3 convolution with padding"""
@@ -40,17 +59,17 @@ class BasicBlock3d(nn.Module):
     __constants__ = ['downsample']
 
     def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1,
-                 base_width=64, dilation=1, drop=0):
+                 base_width=64, dilation=1, drop=0, norm='BN'):
         super(BasicBlock3d, self).__init__()
         if groups != 1 or base_width != 64:
             raise ValueError('BasicBlock only supports groups=1 and base_width=64')
         # Both self.conv1 and self.downsample layers downsample the input when stride != 1
         self.conv1 = conv3x3x3(inplanes, planes, stride, 1, dilation)
-        self.bn1 = nn.BatchNorm3d(planes)
+        self.bn1 = get_norm_3d(norm, planes)
         self.drop1 = nn.Dropout(drop, True)
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = conv3x3x3(planes, planes, 1, 1, dilation)
-        self.bn2 = nn.BatchNorm3d(planes)
+        self.bn2 = get_norm_3d(norm, planes)
         self.drop2 = nn.Dropout(drop, True)
         self.downsample = downsample
         self.stride = stride
@@ -88,11 +107,11 @@ class ConditionalProjection(nn.Module):
     but was found to not be helpful.
     """
 
-    def __init__(self, n, condition=True):
+    def __init__(self, n, norm='BN', condition=True):
         super(ConditionalProjection, self).__init__()
         # return relu(bn(conv(x)) if mask, relu(bn(y)) otherwise
         self.conv = conv1x1x1(n, n)
-        self.norm = nn.BatchNorm3d(n)
+        self.norm = get_norm_3d(norm, n)
         self.relu = nn.ReLU(True)
         self.condition = condition
 
@@ -118,26 +137,26 @@ class Backbone3D(nn.Module):
 
     def __init__(self, channels=[32,64,128], layers_down=[1,2,3],
                  layers_up=[3,3,3], drop=0, zero_init_residual=True,
-                 cond_proj=True):
+                 cond_proj=True, norm='BN'):
         super(Backbone3D, self).__init__()
         self.cond_proj = cond_proj
         self.layers_down = nn.ModuleList()
         self.proj = nn.ModuleList()
 
         self.layers_down.append(nn.Sequential(*[
-            BasicBlock3d(channels[0], channels[0], drop=drop) 
+            BasicBlock3d(channels[0], channels[0], drop=drop, norm=norm) 
             for _ in range(layers_down[0]) ]))
-        self.proj.append( ConditionalProjection(channels[0], cond_proj) )
+        self.proj.append( ConditionalProjection(channels[0], norm, cond_proj) )
         for i in range(1,len(channels)):
             layer = [nn.Conv3d(channels[i-1], channels[i], 3, 2, 1, bias=False),
-                     nn.BatchNorm3d(channels[i]),
+                     get_norm_3d(norm, channels[i]),
                      nn.Dropout(drop, True),
                      nn.ReLU(inplace=True)]
-            layer += [BasicBlock3d(channels[i], channels[i], drop=drop) 
+            layer += [BasicBlock3d(channels[i], channels[i], drop=drop, norm=norm) 
                       for _ in range(layers_down[i])]
             self.layers_down.append(nn.Sequential(*layer))
             if i<len(channels)-1:
-                self.proj.append( ConditionalProjection(channels[i], cond_proj) )
+                self.proj.append( ConditionalProjection(channels[i], norm, cond_proj) )
 
         self.proj = self.proj[::-1]
 
@@ -147,7 +166,7 @@ class Backbone3D(nn.Module):
         for i in range(1,len(channels)):
             self.layers_up_conv.append( conv1x1x1(channels[i-1], channels[i]) )
             self.layers_up_res.append(nn.Sequential( *[
-                BasicBlock3d(channels[i], channels[i], drop=drop) 
+                BasicBlock3d(channels[i], channels[i], drop=drop, norm=norm) 
                 for _ in range(layers_up[i-1]) ]))
 
         # Zero-initialize the last BN in each residual branch,

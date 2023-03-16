@@ -14,4 +14,6 @@ from .models.atlas.atlas import Atlas
 from .models.atlas.backbone2d import FPNFeature
 from .models.atlas.backbone3d import Backbone3D
 from .models.atlas.atlas_head import TSDFHead
+from .models.atlas.fpn import FPNDetectron
+from .models.atlas.resnet import ResNetDetectron
 
