@@ -15,26 +15,15 @@ from projects.mvsdetection.datasets.tsdf import TSDF
 
 @DATASETS.register_module()
 class AtlasScanNetDataset(Custom3DDataset):
-    def __init__(self, data_root, ann_file, pipeline=None, classes=None, test_mode=False, num_frames=50, voxel_size=0.04):
+    def __init__(self, data_root, ann_file, pipeline=None, classes=None, test_mode=False, num_frames=50, voxel_size=0.04, select_type='random'):
         super().__init__(data_root=data_root, ann_file=ann_file, pipeline=pipeline, classes=classes,
                          modality={'use_depth':True, 'use_camera':True}, box_type_3d='Depth', filter_empty_gt=False, test_mode=test_mode)
         self.num_frames = num_frames
         self.voxel_size = voxel_size
         self.data_infos = sorted(self.data_infos, key=lambda x: x['scene'])
+        self.select_type = select_type
     
-    def read_scene_volumes(self, data_path, scene, voxel_size, vol_origin):
-        full_tsdf_dict = {}
-        for i in range(3):
-            current_voxel_size = voxel_size * (2 ** i)
-            current_file_key = 'tsdf_gt_' + str(int(current_voxel_size * 100)).zfill(3) #004, 008, 016
-            raw_tsdf = np.load(os.path.join(data_path, scene, 'full_tsdf_layer{}.npz'.format(i)), allow_pickle=True)
-            vol_origin = torch.as_tensor(vol_origin).view(1, 3)
-            tsdf_vol = torch.as_tensor(raw_tsdf.f.arr_0)
-            full_tsdf = TSDF(voxel_size, vol_origin, tsdf_vol) 
-            full_tsdf_dict[current_file_key] = full_tsdf
-        return full_tsdf_dict
-    
-    def read_atlas_volumes(self, data_path, scene, voxel_size):
+    def read_scene_volumes(self, data_path, scene, voxel_size):
         full_tsdf_dict = {}
         for i in range(3):
             current_voxel_size = voxel_size * (2 ** i)
@@ -55,19 +44,31 @@ class AtlasScanNetDataset(Custom3DDataset):
         intrinsics = []
         
         scene = info['scene']
-        #image_ids = info['image_ids']
         
+        #select type: 
+        #fixed:use fixed 30 pictures
+        #unit:use per n pictures
+        #random:use random n pictures
         total_image_ids = info['total_image_ids']
-        if self.num_frames > 0:
-            image_ids = random.sample(total_image_ids, self.num_frames)
-        else:
+        if self.num_frames <= 0 or self.num_frames > len(total_image_ids):
             image_ids = total_image_ids
+        elif self.select_type == 'fixed':
+            image_ids = info['image_ids']
+        elif self.select_type == 'random':
+                image_ids = random.sample(total_image_ids, self.num_frames)
+        elif self.select_type == 'unit':
+            m = len(total_image_ids)
+            n = self.num_frames
+            image_ids = []
+            k = (m - 1) // (n - 1)
+            image_ids = []
+            for i in range(n):
+                image_ids.append(i * k)
         image_ids.sort()
         
         
         
-        #tsdf_dict = self.read_scene_volumes(os.path.join(self.data_root, 'all_tsdf_9'), scene, info['voxel_size'], info['vol_origin'])
-        tsdf_dict = self.read_atlas_volumes(os.path.join(self.data_root, 'atlas'), scene, info['voxel_size'])
+        tsdf_dict = self.read_scene_volumes(os.path.join(self.data_root, 'atlas'), scene, info['voxel_size'])
         annos = self.get_ann_info(index)
         
 

@@ -20,7 +20,7 @@ from torch.nn import functional as F
 from mmdet.models import HEADS 
 
 @HEADS.register_module
-class TSDFHead(nn.Module):
+class AtlasTSDFHead(nn.Module):
     """ Main head that regresses the TSDF"""
 
     def __init__(self, input_channels, n_scales, voxel_size, loss_weight, label_smoothing, sparse_threshold):

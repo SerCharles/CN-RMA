@@ -11,8 +11,8 @@ N_SCALES = 3
 VOXEL_DIM_TRAIN = [160,160,64]
 VOXEL_DIM_TEST = [256,256,96]
 #
-NUM_FRAMES_TRAIN = 30
-NUM_FRAMES_TEST = 30
+NUM_FRAMES_TRAIN = 20
+NUM_FRAMES_TEST = 500
 RANDOM_ROTATION_3D = True
 RANDOM_TRANSLATION_3D = True
 PAD_XY_3D = 1.0 
@@ -41,31 +41,29 @@ workflow = [('train', 1)]
 total_epochs = 200
 evaluation = dict(interval=3000, voxel_size=VOXEL_SIZE, save_path=work_dir+'/results')
 runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
-checkpoint_config = dict(interval=1)
+checkpoint_config = dict(interval=10)
 log_config = dict(
     interval=10,
     hooks=[
         dict(type='TextLoggerHook'),
-        #dict(type='TensorboardLoggerHook')
     ]
 )
 
 
 train_pipeline = [
-    dict(type='ResizeImage', size=((640, 480))),
+    dict(type='AtlasResizeImage', size=((640, 480))),
     dict(type='AtlasToTensor'),
-    dict(type='RandomTransformSpace', voxel_dim=VOXEL_DIM_TRAIN, 
+    dict(type='AtlasRandomTransformSpace', voxel_dim=VOXEL_DIM_TRAIN, 
         random_rotation=True, random_translation=True, paddingXY=PAD_XY_3D, paddingZ=PAD_Z_3D),
-        #random_rotation=False, random_translation=False, paddingXY=0.0, paddingZ=0.0),
-    dict(type='IntrinsicsPoseToProjection'),
+    dict(type='AtlasIntrinsicsPoseToProjection'),
     dict(type='AtlasCollectData')
 ]
 
 test_pipeline = [
-    dict(type='ResizeImage', size=((640, 480))),
+    dict(type='AtlasResizeImage', size=((640, 480))),
     dict(type='AtlasToTensor'),
-    dict(type='TestTransformSpace', voxel_dim=VOXEL_DIM_TEST, origin=[0, 0, 0]),
-    dict(type='IntrinsicsPoseToProjection'),
+    dict(type='AtlasTestTransformSpace', voxel_dim=VOXEL_DIM_TEST, origin=[0, 0, 0]),
+    dict(type='AtlasIntrinsicsPoseToProjection'),
     dict(type='AtlasCollectData')
 ]
 
@@ -82,7 +80,8 @@ data = dict(
         pipeline=train_pipeline, 
         test_mode=False,
         num_frames=NUM_FRAMES_TRAIN,
-        voxel_size=VOXEL_SIZE),
+        voxel_size=VOXEL_SIZE,
+        select_type='random'),
     val=dict(
         type='AtlasScanNetDataset',
         data_root='./data/scannet',
@@ -91,7 +90,8 @@ data = dict(
         pipeline=test_pipeline, 
         test_mode=True,
         num_frames=NUM_FRAMES_TEST,
-        voxel_size=VOXEL_SIZE),
+        voxel_size=VOXEL_SIZE,
+        select_type='unit'),
     test=dict(
         type='AtlasScanNetDataset',
         data_root='./data/scannet',
@@ -100,7 +100,8 @@ data = dict(
         pipeline=test_pipeline, 
         test_mode=True,
         num_frames=NUM_FRAMES_TEST,
-        voxel_size=VOXEL_SIZE)
+        voxel_size=VOXEL_SIZE,
+        select_type='unit')
 )
 
 
@@ -136,7 +137,7 @@ model = dict(
         pretrained='/data/shenguanlin/atlas/R-50.pth'
     ),
     feature_2d=dict(
-        type='FPNFeature',
+        type='AtlasFPNFeature',
         feature_strides={'p2':4, 'p3':8, 'p4':16, 'p5':32, 'p6':64},
         feature_channels={'p2':256, 'p3':256, 'p4':256, 'p5':256, 'p6':256},
         output_dim=32, 
@@ -144,7 +145,7 @@ model = dict(
         norm='BN'
     ),
     backbone_3d=dict(
-        type='Backbone3D',
+        type='AtlasBackbone3D',
         channels=[32, 64, 128, 256],
         layers_down=[1, 2, 3, 4],
         layers_up=[3, 2, 1],
@@ -154,7 +155,7 @@ model = dict(
         norm='BN'
     ),
     tsdf_head=dict(
-        type='TSDFHead',
+        type='AtlasTSDFHead',
         input_channels=[32, 64, 128],
         n_scales=3,
         voxel_size=VOXEL_SIZE,

@@ -84,7 +84,6 @@ class NeuconScanNetDataset(Custom3DDataset):
             axis_align_matrix = info['annos']['axis_align_matrix'].astype(np.float32)
         else:
             axis_align_matrix = np.eye(4).astype(np.float32)
-            warnings.warn('Axis align matrix is invalid, set to I')
         
         if info['annos']['gt_num'] != 0:
             gt_bboxes_3d = info['annos']['gt_boxes_upright_depth'].astype(np.float32) #K * 6

@@ -69,30 +69,3 @@ for key in model_mine.keys():
 model_mine_full = torch.load('/data/shenguanlin/atlas/epoch_1.pth')
 model_mine_full['state_dict'] = new_state_dict
 torch.save(model_mine_full, '/data/shenguanlin/atlas/switch.pth')
-'''
-with open("/home/sgl/atlas.json","w") as f:
-    json.dump(atlas, f)
-with open("/home/sgl/mine.json","w") as f:
-    json.dump(mine, f)
-    
-with open("/home/sgl/fpn_atlas.json","w") as f:
-    json.dump(fpn_atlas, f)
-with open("/home/sgl/fpn_mine.json","w") as f:
-    json.dump(fpn_mine, f)
-
-with open("/home/sgl/backbone2d_atlas.json","w") as f:
-    json.dump(backbone2d_atlas, f)
-with open("/home/sgl/backbone2d_mine.json","w") as f:
-    json.dump(backbone2d_mine, f)
-
-with open("/home/sgl/backbone3d_atlas.json","w") as f:
-    json.dump(backbone3d_atlas, f)
-with open("/home/sgl/backbone3d_mine.json","w") as f:
-    json.dump(backbone3d_mine, f)
-
-with open("/home/sgl/head_atlas.json","w") as f:
-    json.dump(head_atlas, f)
-with open("/home/sgl/head_mine.json","w") as f:
-    json.dump(head_mine, f)
-'''
-

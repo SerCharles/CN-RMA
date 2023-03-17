@@ -16,7 +16,7 @@ from projects.mvsdetection.models.atlas.detectron_base import (
 
 
 @BACKBONES.register_module()
-class FPNFeature(nn.Module):
+class AtlasFPNFeature(nn.Module):
     """ Converts feature pyrimid to singe feature map (from Detectron2)"""
     
     def __init__(self, feature_strides, feature_channels, output_dim=32, output_stride=4, norm='BN'):

@@ -72,7 +72,7 @@ def pad_scannet(img, intrinsics):
     return img, intrinsics
 
 @PIPELINES.register_module()
-class ResizeImage(object):
+class AtlasResizeImage(object):
     """ Resize everything to given size.
 
     Intrinsics are assumed to refer to image prior to resize.
@@ -100,7 +100,7 @@ class ResizeImage(object):
     
 
 @PIPELINES.register_module()
-class IntrinsicsPoseToProjection(object):
+class AtlasIntrinsicsPoseToProjection(object):
     """ Convert intrinsics and extrinsics matrices to a single projection matrix"""
     def __call__(self, data):
         data['projection'] = []
@@ -134,7 +134,7 @@ def transform_space(data, transform, voxel_dim, origin):
     return data
 
 @PIPELINES.register_module()
-class RandomTransformSpace(object):
+class AtlasRandomTransformSpace(object):
     """ Apply a random 3x4 linear transform to the world coordinate system."""
 
     def __init__(self, voxel_dim, random_rotation=True, random_translation=True,
@@ -211,7 +211,7 @@ class RandomTransformSpace(object):
 
 
 @PIPELINES.register_module()
-class TestTransformSpace(object):
+class AtlasTestTransformSpace(object):
     """ See transform_space"""
 
     def __init__(self, voxel_dim, origin):

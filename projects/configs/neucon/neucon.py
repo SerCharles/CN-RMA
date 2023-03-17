@@ -21,21 +21,21 @@ PAD_XY_3D = 0.1
 PAD_Z_3D = 0.025
 
 train_pipeline = [
-    dict(type='ResizeImage', size=((640, 480))),
-    dict(type='TSDFToTensor'),
-    dict(type='RandomTransformSpace', voxel_dim=N_VOXELS, voxel_size=VOXEL_SIZE, 
+    dict(type='NeuConResizeImage', size=((640, 480))),
+    dict(type='NeuConToTensor'),
+    dict(type='NeuConRandomTransformSpace', voxel_dim=N_VOXELS, voxel_size=VOXEL_SIZE, 
          random_rotation=True, random_translation=True, paddingXY=PAD_XY_3D, paddingZ=PAD_Z_3D),
-    dict(type='IntrinsicsPoseToProjection', n_views=9, stride=4),
-    dict(type='CollectData')
+    dict(type='NeuConIntrinsicsPoseToProjection', n_views=9, stride=4),
+    dict(type='NeuConCollectData')
 ]
 
 test_pipeline = [
-    dict(type='ResizeImage', size=((640, 480))),
-    dict(type='TSDFToTensor'),
-    dict(type='RandomTransformSpace', voxel_dim=N_VOXELS, voxel_size=VOXEL_SIZE, 
+    dict(type='NeuConResizeImage', size=((640, 480))),
+    dict(type='NeuConToTensor'),
+    dict(type='NeuConRandomTransformSpace', voxel_dim=N_VOXELS, voxel_size=VOXEL_SIZE, 
          random_rotation=False, random_translation=False, paddingXY=0, paddingZ=0),
-    dict(type='IntrinsicsPoseToProjection', n_views=9, stride=4),
-    dict(type='CollectData')
+    dict(type='NeuConIntrinsicsPoseToProjection', n_views=9, stride=4),
+    dict(type='NeuConCollectData')
 ]
 
 data = dict(

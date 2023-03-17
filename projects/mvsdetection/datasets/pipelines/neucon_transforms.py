@@ -28,7 +28,7 @@ from mmdet.datasets.builder import PIPELINES
 from mmcv.parallel import DataContainer as DC
 
 @PIPELINES.register_module()
-class TSDFToTensor(object):
+class NeuConToTensor(object):
     def __call__(self, data):
         data['imgs'] = torch.Tensor(np.stack(data['imgs']).transpose([0, 3, 1, 2]))
         data['intrinsics'] = torch.Tensor(data['intrinsics'])
@@ -46,7 +46,7 @@ class TSDFToTensor(object):
         return data
 
 @PIPELINES.register_module()
-class CollectData(object):
+class NeuConCollectData(object):
     def __call__(self, data):
         result = {}
         result['imgs'] = DC(data['imgs'], stack=True)
@@ -93,7 +93,7 @@ def pad_scannet(img, intrinsics):
     return img, intrinsics
 
 @PIPELINES.register_module()
-class ResizeImage(object):
+class NeuConResizeImage(object):
     """ Resize everything to given size.
 
     Intrinsics are assumed to refer to image prior to resize.
@@ -121,7 +121,7 @@ class ResizeImage(object):
 
 
 @PIPELINES.register_module()
-class IntrinsicsPoseToProjection(object):
+class NeuConIntrinsicsPoseToProjection(object):
     """ Convert intrinsics and extrinsics matrices to a single projection matrix"""
 
     def __init__(self, n_views, stride=1):
@@ -165,7 +165,7 @@ class IntrinsicsPoseToProjection(object):
 
 
 @PIPELINES.register_module()
-class RandomTransformSpace(object):
+class NeuConRandomTransformSpace(object):
     """ Apply a random 3x4 linear transform to the world coordinate system.
         This affects pose as well as TSDFs.
     """

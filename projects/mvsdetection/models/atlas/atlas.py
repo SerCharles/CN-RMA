@@ -233,8 +233,8 @@ class Atlas(nn.Module):
                 os.makedirs(os.path.join(save_path, scene_id))
             tsdf_pred.save(os.path.join(save_path, scene_id, scene_id + '.npz'))
             mesh_pred.export(os.path.join(save_path, scene_id, scene_id + '.ply'))
-            kebab = result['kebab'].get_mesh()
-            kebab.export(os.path.join(save_path, scene_id, scene_id + '_gt.ply'))
+            #kebab = result['kebab'].get_mesh()
+            #kebab.export(os.path.join(save_path, scene_id, scene_id + '_gt.ply'))
         
         return results
 
@@ -254,9 +254,9 @@ class Atlas(nn.Module):
             out['scene'] = scene_id
             out['scene_tsdf'] = tsdf
             
-            kebab = TSDF(self.voxel_size, self.origin, inputs['tsdf_list']['tsdf_gt_004'][i].squeeze(0))
-            kebab.origin = offset
-            out['kebab'] = kebab
+            #kebab = TSDF(self.voxel_size, self.origin, inputs['tsdf_list']['tsdf_gt_004'][i].squeeze(0))
+            #kebab.origin = offset
+            #out['kebab'] = kebab
             outs.append(out)
 
         return outs
