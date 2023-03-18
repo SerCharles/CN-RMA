@@ -134,7 +134,7 @@ model = dict(
         out_channels=256,
         norm='BN',
         fuse_type='sum',
-        pretrained='/data/shenguanlin/atlas/R-50.pth'
+        pretrained='/data/shenguanlin/atlas_mine/R-50.pth'
     ),
     feature_2d=dict(
         type='AtlasFPNFeature',

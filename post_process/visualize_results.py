@@ -235,10 +235,11 @@ def generate_gt(box_path, save_path):
 
 def main():
     parser = argparse.ArgumentParser(description="NeuralRecon ScanNet Testing")
-    parser.add_argument("--data_path", type=str, default='/home/sgl/ScanNet')
-    parser.add_argument("--save_path", type=str, default='/data/shenguanlin/pqtransformer/pq-transformer/test')
+    parser.add_argument("--data_path", type=str, default='/data/shenguanlin/ScanNet')
+    parser.add_argument("--save_path", type=str, default='/data/shenguanlin/fcaf3d/atlas_mine/results')
     args = parser.parse_args()
     scene_ids = load_scene_ids(args.data_path, 'val')
+    scene_ids = ['scene0011_00', 'scene0304_00', 'scene0568_00']
     #print(scene_ids)
     scene_ids.sort()
     for scene_id in scene_ids:
@@ -246,14 +247,14 @@ def main():
             continue
         meta_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '.txt')
         mesh_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '_vh_clean_2.ply')
-        bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_pqtransformer.npz')
-        save_path = os.path.join(args.save_path, scene_id, scene_id + '_pqtransformer.ply')
-        gt_path = os.path.join(args.data_path, 'scannet_instance_data', scene_id + '_aligned_bbox.npy')
-        gt_bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_gt.npz')
-        gt_save_path = os.path.join(args.save_path, scene_id, scene_id + '_gt.ply')
-        generate_gt(gt_path, gt_bbox_path)
+        bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_atlas_mine.npz')
+        save_path = os.path.join(args.save_path, scene_id, scene_id + '_atlas_mine.ply')
+        #gt_path = os.path.join(args.data_path, 'scannet_instance_data', scene_id + '_aligned_bbox.npy')
+        #gt_bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_gt.npz')
+        #gt_save_path = os.path.join(args.save_path, scene_id, scene_id + '_gt.ply')
+        #generate_gt(gt_path, gt_bbox_path)
         visualize_boxs(mesh_path, meta_path, bbox_path, save_path)
-        visualize_boxs(mesh_path,  meta_path, gt_bbox_path, gt_save_path)
+        #visualize_boxs(mesh_path,  meta_path, gt_bbox_path, gt_save_path)
         print('processed ' + scene_id)
 
 if __name__ == "__main__":

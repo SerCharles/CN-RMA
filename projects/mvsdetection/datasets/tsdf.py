@@ -116,7 +116,7 @@ class TSDF():
         if tsdf_vol.min()>=0 or tsdf_vol.max()<=0:
             return trimesh.Trimesh(vertices=np.zeros((0,3)))
 
-        verts, faces, norms, vals = measure.marching_cubes_lewiner(tsdf_vol, level=0)
+        verts, faces, norms, vals = measure.marching_cubes(tsdf_vol, level=0)
 
         verts = verts * self.voxel_size + self.origin.cpu().numpy()
 

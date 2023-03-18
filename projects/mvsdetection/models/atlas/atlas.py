@@ -132,24 +132,8 @@ class Atlas(nn.Module):
         # run all images through 2d cnn together to share batchnorm stats
         image = images.reshape(images.shape[0]*images.shape[1], *images.shape[2:])
         image = self.normalizer(image)
-        
-        # CUDA MEMORY NOT ENOUGH
-        '''
-        image_size = int(image.shape[0] // 5)
-        features = []
-        for i in range(5):
-            image_now = image[i * image_size : (i + 1) * image_size, :, :, :]
-            feature_now = self.backbone2d(image_now)
-            features.append(feature_now)
-        features = torch.cat(features, dim=0)
-        '''
-        
-        #original method
+ 
         features = self.backbone2d(image)
-        
-        
-        
-        # reshape back
         features = features.view(images.shape[0], images.shape[1], *features.shape[1:])
 
         for projection, feature in zip(projections, features):
@@ -182,6 +166,7 @@ class Atlas(nn.Module):
         return losses3d
     
     def forward_test(self, inputs):
+        
         self.voxel_dim = self.voxel_dim_test
         self.initialize_volume()
 
@@ -197,23 +182,8 @@ class Atlas(nn.Module):
         images = image.transpose(0,1)
         projections = projection.transpose(0,1)
         
-        
         for projection, image in zip(projections, images):
             self.inference1(projection, image=image)
-        
-        
-        '''
-        # run all images through 2d cnn together to share batchnorm stats
-        image = images.reshape(images.shape[0]*images.shape[1], *images.shape[2:])
-        image = self.normalizer(image)
-        features = self.backbone2d(image)
-        
-        # reshape back
-        features = features.view(images.shape[0], images.shape[1], *features.shape[1:])
-
-        for projection, feature in zip(projections, features):
-            self.inference1(projection, feature=feature)
-        '''
         
         # run 3d cnn
         outputs3d, losses3d = self.inference2(targets3d)
@@ -222,7 +192,7 @@ class Atlas(nn.Module):
         results = self.post_process(outputs3d, inputs)
         
         import os 
-        save_path = '/data/shenguanlin/atlas/results'
+        save_path = '/data/shenguanlin/atlas_mine/results'
         if not os.path.exists(save_path):
             os.makedirs(save_path) 
         for result in results:
@@ -236,7 +206,7 @@ class Atlas(nn.Module):
             #kebab = result['kebab'].get_mesh()
             #kebab.export(os.path.join(save_path, scene_id, scene_id + '_gt.ply'))
         
-        return results
+        return [{}]
 
     def post_process(self, outputs, inputs):
         key = 'scene_tsdf_004'

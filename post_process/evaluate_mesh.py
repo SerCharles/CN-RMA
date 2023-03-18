@@ -32,7 +32,7 @@ torch.multiprocessing.set_sharing_strategy('file_system')
 
 def parse_args():
     parser = argparse.ArgumentParser(description="NeuralRecon ScanNet Testing")
-    parser.add_argument("--result_path", type=str, default='/home/shenguanlin/Atlas/results/atlas/base/results',
+    parser.add_argument("--result_path", type=str, default='/data/shenguanlin/atlas_mine/results',
                         help="path to result")
     parser.add_argument("--data_path", type=str,
                         help="path to dataset", default='/data/shenguanlin/ScanNet')
@@ -151,8 +151,8 @@ def display_results(fname):
 def process(scene_id):
     axis_align_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '.txt')
     axis_align_matrix = read_axis_align_matrix(axis_align_path)
-    #pred_mesh_path = os.path.join(args.result_path, scene_id, scene_id + '.ply')
-    pred_mesh_path = os.path.join(args.result_path, scene_id + '.ply')
+    pred_mesh_path = os.path.join(args.result_path, scene_id, scene_id + '.ply')
+    #pred_mesh_path = os.path.join(args.result_path, scene_id + '.ply')
     gt_mesh_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '_vh_clean_2.ply')
     pcd_pred = o3d.io.read_point_cloud(pred_mesh_path)
     pcd_gt = o3d.io.read_point_cloud(gt_mesh_path)

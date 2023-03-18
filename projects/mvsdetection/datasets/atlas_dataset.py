@@ -22,7 +22,15 @@ class AtlasScanNetDataset(Custom3DDataset):
         self.voxel_size = voxel_size
         self.data_infos = sorted(self.data_infos, key=lambda x: x['scene'])
         self.select_type = select_type
-    
+        '''
+        new_data_infos = []
+        for info in self.data_infos:
+            scene = info['scene']
+            if not os.path.exists(os.path.join('/data/shenguanlin/atlas_mine/results', scene, scene + '.ply')):
+                new_data_infos.append(info)
+        self.data_infos = new_data_infos
+        print(len(self.data_infos))
+        '''
     def read_scene_volumes(self, data_path, scene, voxel_size):
         full_tsdf_dict = {}
         for i in range(3):
