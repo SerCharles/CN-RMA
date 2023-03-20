@@ -1,3 +1,4 @@
+import json 
 import mmcv
 import numpy as np
 import os
@@ -77,9 +78,10 @@ class ScanNetData(object):
 
         def process_single_scene(sample_idx):
             print(f'{self.split} sample_idx: {sample_idx}')
-            tsdf_path = os.path.join(self.root_dir, 'all_tsdf_9', sample_idx)
-            pkl_path = os.path.join(tsdf_path, 'single_fragment_info.pkl')
-            info = mmcv.load(pkl_path)
+            tsdf_path = os.path.join(self.root_dir, 'atlas_tsdf', sample_idx)
+            info_path = os.path.join(tsdf_path, 'info.json')
+            with open(info_path) as f:
+                info = json.load(f)
 
             if has_label:
                 annotations = {}

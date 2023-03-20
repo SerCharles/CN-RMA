@@ -22,15 +22,7 @@ class AtlasScanNetDataset(Custom3DDataset):
         self.voxel_size = voxel_size
         self.data_infos = sorted(self.data_infos, key=lambda x: x['scene'])
         self.select_type = select_type
-        '''
-        new_data_infos = []
-        for info in self.data_infos:
-            scene = info['scene']
-            if not os.path.exists(os.path.join('/data/shenguanlin/atlas_mine/results', scene, scene + '.ply')):
-                new_data_infos.append(info)
-        self.data_infos = new_data_infos
-        print(len(self.data_infos))
-        '''
+
     def read_scene_volumes(self, data_path, scene, voxel_size):
         full_tsdf_dict = {}
         for i in range(3):
@@ -54,14 +46,11 @@ class AtlasScanNetDataset(Custom3DDataset):
         scene = info['scene']
         
         #select type: 
-        #fixed:use fixed 30 pictures
         #unit:use per n pictures
         #random:use random n pictures
         total_image_ids = info['total_image_ids']
         if self.num_frames <= 0 or self.num_frames > len(total_image_ids):
             image_ids = total_image_ids
-        elif self.select_type == 'fixed':
-            image_ids = info['image_ids']
         elif self.select_type == 'random':
                 image_ids = random.sample(total_image_ids, self.num_frames)
         elif self.select_type == 'unit':
@@ -74,12 +63,9 @@ class AtlasScanNetDataset(Custom3DDataset):
                 image_ids.append(i * k)
         image_ids.sort()
         
-        
-        
-        tsdf_dict = self.read_scene_volumes(os.path.join(self.data_root, 'atlas'), scene, info['voxel_size'])
+        tsdf_dict = self.read_scene_volumes(os.path.join(self.data_root, 'atlas_tsdf'), scene, info['voxel_size'])
         annos = self.get_ann_info(index)
         
-
         for i, vid in enumerate(image_ids):
             vid = str(int(vid)).zfill(5)
             img_path = os.path.join(self.data_root, 'posed_images', scene, vid + '.jpg')
@@ -91,7 +77,7 @@ class AtlasScanNetDataset(Custom3DDataset):
             intrinsic = intrinsic.astype(np.float32)
             extrinsic = np.loadtxt(extrinsic_path)
             axis_align_matrix = annos['axis_align_matrix']
-            #extrinsic = axis_align_matrix @ extrinsic 
+            extrinsic = axis_align_matrix @ extrinsic 
             imgs.append(img)
             intrinsics.append(intrinsic)
             extrinsics.append(extrinsic)
