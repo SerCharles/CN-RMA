@@ -22,7 +22,7 @@ from PIL import Image, ImageOps
 import numpy as np
 import transforms3d
 import torch
-from data_prepare.tsdf_fusion import TSDFVolumeTorch
+from data_prepare.neucon.tsdf_fusion import TSDFVolumeTorch
 import mmcv 
 from mmdet.datasets.builder import PIPELINES
 from mmcv.parallel import DataContainer as DC

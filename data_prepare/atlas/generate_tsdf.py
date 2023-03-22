@@ -156,16 +156,15 @@ def prepare_scannet_single(args, scenes):
                                              batch_sampler=None, num_workers=args.num_workers)
         
         frame_list = []
+        id_list = []
         for i, frame in enumerate(dataloader):
             if i % 100 == 0:
                 print("{}: read frame {}/{}".format(scene, str(i), str(len(dataset))))
-            if frame['valid']:
+            if frame['valid'] == True:
                 frame_list.append(frame)
+                id_list.append(int(frame['id']))
         frame_list = sorted(frame_list, key=lambda x: x['id'])
-        
-        id_list = []
-        for frame in frame_list:
-            id_list.append(int(frame['id']))
+        id_list.sort()
         
         info = {
             'scene': scene,
@@ -226,7 +225,7 @@ def main(args):
     results = ray.get(ray_worker_ids)
     
     
-    #prepare_scannet_single(args, ['scene0011_00'])
+    prepare_scannet_single(args, scenes)
 
 
 

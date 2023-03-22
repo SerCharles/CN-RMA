@@ -91,7 +91,7 @@ data = dict(
         test_mode=True,
         num_frames=NUM_FRAMES_TEST,
         voxel_size=VOXEL_SIZE,
-        select_type='unit'),
+        select_type='random'),
     test=dict(
         type='AtlasScanNetDataset',
         data_root='./data/scannet',
@@ -101,7 +101,7 @@ data = dict(
         test_mode=True,
         num_frames=NUM_FRAMES_TEST,
         voxel_size=VOXEL_SIZE,
-        select_type='unit')
+        select_type='random')
 )
 
 

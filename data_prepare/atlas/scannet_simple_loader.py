@@ -92,6 +92,7 @@ class ScanNetSimpleDataset(torch.utils.data.Dataset):
         
         if not np.all(np.isfinite(data['pose'])):
             data['valid'] = False
+            print(self.scene_id + '/image_' + str(data['id']) + ' is invalid, removed!')
         else:
             data['valid'] = True  
             data['pose'] = axis_align_matrix @ data['pose']

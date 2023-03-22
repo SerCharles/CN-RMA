@@ -63,7 +63,7 @@ class AtlasScanNetDataset(Custom3DDataset):
                 image_ids.append(i * k)
         image_ids.sort()
         
-        tsdf_dict = self.read_scene_volumes(os.path.join(self.data_root, 'atlas_tsdf'), scene, info['voxel_size'])
+        tsdf_dict = self.read_scene_volumes(os.path.join(self.data_root, 'atlas_tsdf'), scene, self.voxel_size)
         annos = self.get_ann_info(index)
         
         for i, vid in enumerate(image_ids):
@@ -89,9 +89,7 @@ class AtlasScanNetDataset(Custom3DDataset):
             'imgs': imgs, 
             'intrinsics': intrinsics,
             'extrinsics': extrinsics, 
-            'tsdf_dict': tsdf_dict,
-            'voxel_size': info['voxel_size'],
-            'vol_origin': info['vol_origin'],            
+            'tsdf_dict': tsdf_dict,        
         }
         items['ann_info'] = annos 
         return items
