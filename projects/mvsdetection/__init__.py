@@ -8,8 +8,18 @@ from .models.neucon.neuralrecon import NeuralRecon
 from .datasets.atlas_dataset import AtlasScanNetDataset
 from .datasets.tsdf import TSDF
 from .datasets.neucon_dataset import NeuconScanNetDataset
-from .datasets.pipelines import (AtlasResizeImage, AtlasIntrinsicsPoseToProjection, AtlasRandomTransformSpace, AtlasTestTransformSpace, AtlasToTensor, AtlasCollectData,
-                                 NeuConToTensor, NeuConCollectData, NeuConResizeImage, NeuConIntrinsicsPoseToProjection, NeuConRandomTransformSpace)
+from .datasets.pipelines import (AtlasResizeImage, 
+                                 AtlasIntrinsicsPoseToProjection, 
+                                 AtlasRandomTransformSpaceRecon, 
+                                 AtlasRandomTransformSpaceDetection, 
+                                 AtlasTestTransformSpace, 
+                                 AtlasToTensor, 
+                                 AtlasCollectData,
+                                 NeuConToTensor, 
+                                 NeuConCollectData, 
+                                 NeuConResizeImage, 
+                                 NeuConIntrinsicsPoseToProjection, 
+                                 NeuConRandomTransformSpace)
 
 from .models.atlas.atlas import Atlas
 from .models.atlas.backbone2d import AtlasFPNFeature

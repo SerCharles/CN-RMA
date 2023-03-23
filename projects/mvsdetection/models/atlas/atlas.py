@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.distributed as dist
@@ -143,24 +144,31 @@ class Atlas(nn.Module):
         outputs3d, losses3d = self.inference2(targets3d)
         
         
-        '''
-        results = self.post_process(outputs3d, inputs)
-        #results = self.post_process({}, inputs)
+        
+        #results = self.post_process(outputs3d, inputs)
+        results = self.post_process({}, inputs)
         import os 
-        save_path = '/data/shenguanlin/atlas/results'
+        save_path = '/data/shenguanlin/atlas_test/results'
         if not os.path.exists(save_path):
             os.makedirs(save_path) 
         for result in results:
             scene_id = result['scene']
-            tsdf_pred = result['scene_tsdf']
-            mesh_pred = tsdf_pred.get_mesh()
+            #tsdf_pred = result['scene_tsdf']
+            #mesh_pred = tsdf_pred.get_mesh()
             if not os.path.exists(os.path.join(save_path, scene_id)):
                 os.makedirs(os.path.join(save_path, scene_id))
-            tsdf_pred.save(os.path.join(save_path, scene_id, scene_id + '.npz'))
-            mesh_pred.export(os.path.join(save_path, scene_id, scene_id + '.ply'))
+            #tsdf_pred.save(os.path.join(save_path, scene_id, scene_id + '.npz'))
+            #mesh_pred.export(os.path.join(save_path, scene_id, scene_id + '.ply'))
             kebab = result['kebab'].get_mesh()
             kebab.export(os.path.join(save_path, scene_id, scene_id + '_gt.ply'))
-        '''
+        for i in range(len(inputs['scene'])):
+            gt_bbox = inputs['gt_bboxes_3d'][i].tensor.clone().detach().cpu().numpy()
+            gt_bbox[:, 2] = gt_bbox[:, 2] + gt_bbox[:, 5] / 2
+            gt_label = inputs['gt_labels_3d'][i].clone().detach().cpu().numpy()
+            gt_score = np.ones_like(gt_label, dtype=np.float32)
+            file_name = os.path.join(save_path, scene_id, scene_id + '_gt.npz')
+            np.savez(file_name, boxes=gt_bbox, scores=gt_score, labels=gt_label)
+            
         
         
         return losses3d
@@ -211,22 +219,22 @@ class Atlas(nn.Module):
     def post_process(self, outputs, inputs):
         key = 'scene_tsdf_004'
         outs = []
-        batch_size = len(outputs[key])
-        #batch_size=1
+        #batch_size = len(outputs[key])
+        batch_size=1
 
         for i in range(batch_size):
             scene_id = inputs['scene'][i]
-            tsdf = TSDF(self.voxel_size, self.origin, outputs[key][i].squeeze(0))
+            #tsdf = TSDF(self.voxel_size, self.origin, outputs[key][i].squeeze(0))
             offset = inputs['offset'][i].view(1, 3)
-            tsdf.origin = offset
+            #tsdf.origin = offset
             
             out = {}
             out['scene'] = scene_id
-            out['scene_tsdf'] = tsdf
+            #out['scene_tsdf'] = tsdf
             
-            #kebab = TSDF(self.voxel_size, self.origin, inputs['tsdf_list']['tsdf_gt_004'][i].squeeze(0))
+            kebab = TSDF(self.voxel_size, self.origin, inputs['tsdf_list']['tsdf_gt_004'][i].squeeze(0))
             #kebab.origin = offset
-            #out['kebab'] = kebab
+            out['kebab'] = kebab
             outs.append(out)
 
         return outs

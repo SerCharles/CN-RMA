@@ -101,23 +101,19 @@ def get_box_edges(center, lengths, heading_angle):
     edges = np.stack(edges, axis = 0) #12 * 2 * 3
     return edges
 
-def read_axis_alignment(data_path):
-    """Read the axis alignment matrix
-
-    Args:
-        data_path [string]: [the full path of the ply file]
-
-    Returns:
-        axis_alignment_matrix [numpy float array], [4 * 4]: [the axis alignment matrix of the scene]
-    """
-    lines = open(data_path).readlines()
-    for line in lines:
-        if 'axisAlignment' in line:
-            axis_alignment_matrix = [float(x) \
-                for x in line.rstrip().strip('axisAlignment = ').split(' ')]
-            break
-    axis_alignment_matrix = np.array(axis_alignment_matrix).reshape((4, 4))
-    return axis_alignment_matrix
+def read_axis_align_matrix(data_path):
+    axis_align_matrix = np.eye(4)
+    if os.path.exists(data_path):
+        lines = open(data_path).readlines()
+        for line in lines:
+            if 'axisAlignment' in line:
+                axis_align_matrix = [
+                    float(x)
+                    for x in line.rstrip().strip('axisAlignment = ').split(' ')
+                ]
+                break    
+    axis_align_matrix = np.array(axis_align_matrix).reshape((4, 4))
+    return axis_align_matrix
 
 def init_scene(mesh_path, meta_path):
     """Read and init the scene mesh
@@ -129,7 +125,7 @@ def init_scene(mesh_path, meta_path):
         mesh [trimesh.Trimesh]: [the transformed input mesh]
     """
     #read
-    axis_align_matrix = read_axis_alignment(meta_path)
+    axis_align_matrix = read_axis_align_matrix(meta_path)
     mesh = trimesh.load(mesh_path)
     vertexs = np.array(mesh.vertices) #V * 3
     colors = np.array(mesh.visual.vertex_colors)[:, 0:3] #V * 3
@@ -236,19 +232,21 @@ def generate_gt(box_path, save_path):
 def main():
     parser = argparse.ArgumentParser(description="NeuralRecon ScanNet Testing")
     parser.add_argument("--data_path", type=str, default='/data/shenguanlin/ScanNet')
-    parser.add_argument("--save_path", type=str, default='/data/shenguanlin/fcaf3d/atlas_mine/results')
+    parser.add_argument("--save_path", type=str, default='/data/shenguanlin/atlas_test/results')
     args = parser.parse_args()
     scene_ids = load_scene_ids(args.data_path, 'val')
-    scene_ids = ['scene0011_00', 'scene0304_00', 'scene0568_00']
+    scene_ids = ['scene0041_00', 'scene0280_01', 'scene0367_00', 'scene0473_00', 'scene0487_01', 'scene0600_00']
     #print(scene_ids)
     scene_ids.sort()
     for scene_id in scene_ids:
         if not os.path.exists(os.path.join(args.save_path, scene_id)):
             continue
-        meta_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '.txt')
-        mesh_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '_vh_clean_2.ply')
-        bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_atlas_mine.npz')
-        save_path = os.path.join(args.save_path, scene_id, scene_id + '_atlas_mine.ply')
+        #meta_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '.txt')
+        #mesh_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '_vh_clean_2.ply')
+        mesh_path = os.path.join(args.save_path, scene_id, scene_id + '_gt.ply')
+        bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_gt.npz')
+        save_path = os.path.join(args.save_path, scene_id, scene_id + '_detect.ply')
+        meta_path = '1'
         #gt_path = os.path.join(args.data_path, 'scannet_instance_data', scene_id + '_aligned_bbox.npy')
         #gt_bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_gt.npz')
         #gt_save_path = os.path.join(args.save_path, scene_id, scene_id + '_gt.ply')

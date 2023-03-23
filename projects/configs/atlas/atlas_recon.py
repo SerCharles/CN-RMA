@@ -10,12 +10,11 @@ VOXEL_SIZE = 0.04
 N_SCALES = 3
 VOXEL_DIM_TRAIN = [160,160,64]
 VOXEL_DIM_TEST = [256,256,96]
-#
 NUM_FRAMES_TRAIN = 20
 NUM_FRAMES_TEST = 500
 RANDOM_ROTATION_3D = True
 RANDOM_TRANSLATION_3D = True
-PAD_XY_3D = 1.0 
+PAD_XY_3D = 1.0
 PAD_Z_3D = 0.25
 LOSS_WEIGHT_TSDF = 1.0
 
@@ -35,7 +34,7 @@ lr_config = dict(policy='step', warmup=None, step=[300], gamma=0.1)
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = './work_dirs/atlas'
-load_from = None
+load_from = '/data/shenguanlin/atlas_mine/switch.pth'
 resume_from = None
 workflow = [('train', 1)]
 total_epochs = 200
@@ -53,7 +52,7 @@ log_config = dict(
 train_pipeline = [
     dict(type='AtlasResizeImage', size=((640, 480))),
     dict(type='AtlasToTensor'),
-    dict(type='AtlasRandomTransformSpace', voxel_dim=VOXEL_DIM_TRAIN, 
+    dict(type='AtlasRandomTransformSpaceRecon', voxel_dim=VOXEL_DIM_TRAIN, 
         random_rotation=True, random_translation=True, paddingXY=PAD_XY_3D, paddingZ=PAD_Z_3D),
     dict(type='AtlasIntrinsicsPoseToProjection'),
     dict(type='AtlasCollectData')
@@ -95,7 +94,7 @@ data = dict(
     test=dict(
         type='AtlasScanNetDataset',
         data_root='./data/scannet',
-        ann_file='./data/scannet/scannet_infos_val.pkl',
+        ann_file='./data/scannet/scannet_infos_train.pkl',
         classes=class_names, 
         pipeline=test_pipeline, 
         test_mode=True,
