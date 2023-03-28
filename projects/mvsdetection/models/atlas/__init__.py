@@ -4,4 +4,7 @@ from .backbone3d import AtlasBackbone3D
 from .atlas_head import AtlasTSDFHead
 from .fpn import FPNDetectron
 from .resnet import ResNetDetectron
-__all__ = ['AtlasTSDFHead', 'Atlas', 'AtlasFPNFeature', 'AtlasBackbone3D', 'FPNDetectron', 'ResNetDetectron']
+from .fcaf3d_backbone import FCAF3DBackbone
+from .fcaf3d_head import FCAF3DHead, FCAF3DAssigner
+from .atlas_detection import AtlasDetection
+__all__ = ['AtlasTSDFHead', 'Atlas', 'AtlasFPNFeature', 'AtlasBackbone3D', 'FPNDetectron', 'ResNetDetectron', 'AtlasDetection', 'FCAF3DBackbone', 'FCAF3DHead', 'FCAF3DAssigner']

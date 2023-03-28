@@ -27,4 +27,6 @@ from .models.atlas.backbone3d import AtlasBackbone3D
 from .models.atlas.atlas_head import AtlasTSDFHead
 from .models.atlas.fpn import FPNDetectron
 from .models.atlas.resnet import ResNetDetectron
-
+from .models.atlas.fcaf3d_backbone import FCAF3DBackbone
+from .models.atlas.fcaf3d_head import FCAF3DHead, FCAF3DAssigner
+from .models.atlas.atlas_detection import AtlasDetection

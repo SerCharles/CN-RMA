@@ -23,12 +23,11 @@ from mmdet.models import HEADS
 class AtlasTSDFHead(nn.Module):
     """ Main head that regresses the TSDF"""
 
-    def __init__(self, input_channels, n_scales, voxel_size, loss_weight, label_smoothing, sparse_threshold):
+    def __init__(self, input_channels, n_scales, voxel_size, label_smoothing, sparse_threshold):
         super().__init__()
         self.input_channels = input_channels
         self.n_scales = n_scales
         self.voxel_size = voxel_size
-        self.loss_weight = loss_weight
         self.label_smoothing = label_smoothing
         self.sparse_threshold = sparse_threshold
         self.voxel_sizes = [self.voxel_size * (2 ** i) for i in range(n_scales)][::-1] #0.16, 0.08, 0.04
@@ -46,9 +45,7 @@ class AtlasTSDFHead(nn.Module):
         for i, (decoder, x) in enumerate(zip(self.decoders, xs)):
             # regress the TSDF
             tsdf = torch.tanh(decoder(x)) * self.label_smoothing
-
-
-
+            
             # use previous scale to sparsify current scale
             if i > 0:
                 previous_key = 'scene_tsdf_' + self.keys[i - 1]
@@ -76,7 +73,7 @@ class AtlasTSDFHead(nn.Module):
                 mask_outside  = (trgt==1).all(-1, keepdim=True)
                 pred = log_transform(pred, 1.0)
                 trgt = log_transform(trgt, 1.0)
-                loss = F.l1_loss(pred, trgt, reduction='none') * self.loss_weight
+                loss = F.l1_loss(pred, trgt, reduction='none')
                 loss_key = 'tsdf_loss_' + self.keys[i]
                 if i==0:
                     # no sparsifing mask for first resolution

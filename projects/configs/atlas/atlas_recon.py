@@ -16,7 +16,6 @@ RANDOM_ROTATION_3D = True
 RANDOM_TRANSLATION_3D = True
 PAD_XY_3D = 1.0
 PAD_Z_3D = 0.25
-LOSS_WEIGHT_TSDF = 1.0
 
 optimizer = dict(
     type='Adam', 
@@ -158,7 +157,6 @@ model = dict(
         input_channels=[32, 64, 128],
         n_scales=3,
         voxel_size=VOXEL_SIZE,
-        loss_weight=LOSS_WEIGHT_TSDF,
         label_smoothing=1.05,
         sparse_threshold = [0.99, 0.99, 0.99]
     )
