@@ -18,6 +18,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from mmdet.models import BACKBONES
+from mmcv.runner import auto_fp16
 
 
 def get_norm_3d(norm, out_channels):
@@ -61,6 +62,7 @@ class BasicBlock3d(nn.Module):
     def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1,
                  base_width=64, dilation=1, drop=0, norm='BN'):
         super(BasicBlock3d, self).__init__()
+        self.fp16_enabled = False
         if groups != 1 or base_width != 64:
             raise ValueError('BasicBlock only supports groups=1 and base_width=64')
         # Both self.conv1 and self.downsample layers downsample the input when stride != 1
@@ -73,7 +75,7 @@ class BasicBlock3d(nn.Module):
         self.drop2 = nn.Dropout(drop, True)
         self.downsample = downsample
         self.stride = stride
-
+        
     def forward(self, x):
         identity = x
 
@@ -114,7 +116,7 @@ class ConditionalProjection(nn.Module):
         self.norm = get_norm_3d(norm, n)
         self.relu = nn.ReLU(True)
         self.condition = condition
-
+        
     def forward(self, x, y, mask):
         """
         Args:
@@ -178,7 +180,7 @@ class AtlasBackbone3D(nn.Module):
                 if isinstance(m, BasicBlock3d):
                     nn.init.constant_(m.bn2.weight, 0)
 
-
+    @auto_fp16() 
     def forward(self, x):
         if self.cond_proj:
             valid_mask = (x!=0).any(1, keepdim=True).float()

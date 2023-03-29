@@ -235,7 +235,7 @@ def main():
     parser.add_argument("--save_path", type=str, default='/data/shenguanlin/atlas_test/results')
     args = parser.parse_args()
     scene_ids = load_scene_ids(args.data_path, 'val')
-    scene_ids = ['scene0041_00', 'scene0280_01', 'scene0367_00', 'scene0473_00', 'scene0487_01', 'scene0600_00']
+    scene_ids = ['scene0005_00', 'scene0041_00', 'scene0106_00', 'scene0158_00', 'scene0344_00', 'scene0137_02']
     #print(scene_ids)
     scene_ids.sort()
     for scene_id in scene_ids:

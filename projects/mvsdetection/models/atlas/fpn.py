@@ -5,6 +5,8 @@ import torch.nn.functional as F
 from torch import nn
 import numpy as np
 from mmdet.models import BACKBONES
+from mmcv.runner import auto_fp16
+
 
 
 from projects.mvsdetection.models.atlas.detectron_base import (
@@ -79,6 +81,7 @@ class FPNDetectron(Backbone):
                 which takes the element-wise mean of the two.
         """
         super(FPNDetectron, self).__init__()
+        self.fp16_enabled = False
         bottom_up = ResNetDetectron(**bottom_up_cfg)
         top_block = LastLevelMaxPool()
         # Feature map strides and channels from the bottom up network (e.g. ResNet)
@@ -143,6 +146,7 @@ class FPNDetectron(Backbone):
     def size_divisibility(self):
         return self._size_divisibility
 
+    @auto_fp16() 
     def forward(self, x):
         """
         Args:

@@ -10,12 +10,13 @@ VOXEL_SIZE = 0.04
 N_SCALES = 3
 VOXEL_DIM_TRAIN = [160,160,64]
 VOXEL_DIM_TEST = [256,256,96]
-NUM_FRAMES_TRAIN = 20
+NUM_FRAMES_TRAIN = 50
 NUM_FRAMES_TEST = 500
 RANDOM_ROTATION_3D = True
 RANDOM_TRANSLATION_3D = True
 PAD_XY_3D = 1.0
 PAD_Z_3D = 0.25
+fp16 = dict(loss_scale=512.)
 
 optimizer = dict(
     type='Adam', 
@@ -93,7 +94,7 @@ data = dict(
     test=dict(
         type='AtlasScanNetDataset',
         data_root='./data/scannet',
-        ann_file='./data/scannet/scannet_infos_train.pkl',
+        ann_file='./data/scannet/scannet_infos_val.pkl',
         classes=class_names, 
         pipeline=test_pipeline, 
         test_mode=True,

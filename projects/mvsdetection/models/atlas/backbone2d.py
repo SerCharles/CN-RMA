@@ -3,6 +3,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 from mmdet.models import BACKBONES
+from mmcv.runner import auto_fp16
 from projects.mvsdetection.models.atlas.detectron_base import (
     c2_xavier_fill, 
     c2_msra_fill, 
@@ -21,6 +22,7 @@ class AtlasFPNFeature(nn.Module):
     
     def __init__(self, feature_strides, feature_channels, output_dim=32, output_stride=4, norm='BN'):
         super().__init__()
+        self.fp16_enabled = False
         self.in_features = ["p2", "p3", "p4", "p5"]
         self.scale_heads = []
         for in_feature in self.in_features:
@@ -48,6 +50,7 @@ class AtlasFPNFeature(nn.Module):
             self.scale_heads.append(nn.Sequential(*head_ops))
             self.add_module(in_feature, self.scale_heads[-1])
 
+    @auto_fp16() 
     def forward(self, features):
         for i, f in enumerate(self.in_features):
             if i == 0:

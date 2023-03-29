@@ -4,6 +4,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 from mmdet.models import BACKBONES
+from mmcv.runner import auto_fp16
 
 
 from projects.mvsdetection.models.atlas.detectron_base import (
@@ -264,6 +265,7 @@ class ResNetDetectron(Backbone):
                 see :meth:`freeze` for detailed explanation.
         """
         super().__init__()
+        self.fp16_enabled = False
         stem = BasicStem(
             in_channels=input_channels,
             out_channels=stem_out_channels,
@@ -368,6 +370,7 @@ class ResNetDetectron(Backbone):
             assert out_feature in children, "Available children: {}".format(", ".join(children))
         self.freeze(freeze_at)
 
+    @auto_fp16() 
     def forward(self, x):
         """
         Args:

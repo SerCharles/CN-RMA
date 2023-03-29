@@ -77,6 +77,6 @@ def evaluate_bbox(data_path, result_path):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_path", type=str, default='/data/shenguanlin/ScanNet')
-    parser.add_argument("--result_path", type=str, default='/data/shenguanlin/fcaf3d/atlas_flip_scale/results')
+    parser.add_argument("--result_path", type=str, default='/data/shenguanlin/fcaf3d/atlas_mine/results')
     args = parser.parse_args()
     evaluate_bbox(args.data_path, args.result_path)

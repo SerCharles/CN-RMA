@@ -8,7 +8,7 @@ PIXEL_MEAN = [103.53, 116.28, 123.675]
 PIXEL_STD = [1.0, 1.0, 1.0]
 VOXEL_SIZE = 0.04
 N_SCALES = 3
-VOXEL_DIM_TRAIN = [144,144,56]
+VOXEL_DIM_TRAIN = [144,144,48]
 VOXEL_DIM_TEST = [256,256,96]
 #
 NUM_FRAMES_TRAIN = 20
@@ -18,14 +18,14 @@ RANDOM_TRANSLATION_3D = True
 PAD_XY_3D = 0.1
 PAD_Z_3D = 0.1
 LOSS_WEIGHT_RECON = 1.0
-LOSS_WEIGHT_DETECTION = 1.0
+LOSS_WEIGHT_DETECTION = 0.4
 
 optimizer = dict(type='AdamW', lr=0.001, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=dict(max_norm=10, norm_type=2))
 lr_config = dict(policy='step', warmup=None, step=[80, 110])
 
 #find_unused_parameters = True
-dist_params = dict(backend='nccl')
+dist_params = dict(backend='nccl', num_gpus=2, communication_backend='NCCL')
 log_level = 'INFO'
 work_dir = './work_dirs/atlas'
 load_from = '/data/shenguanlin/atlas_mine/switch.pth'
@@ -108,6 +108,8 @@ model = dict(
     voxel_dim_test=VOXEL_DIM_TEST,
     origin=[0,0,0],
     backbone2d_stride=4,
+    loss_weight_detection=LOSS_WEIGHT_DETECTION, 
+    loss_weight_recon=LOSS_WEIGHT_RECON,
     backbone2d=dict(
         type='FPNDetectron',
         bottom_up_cfg=dict(

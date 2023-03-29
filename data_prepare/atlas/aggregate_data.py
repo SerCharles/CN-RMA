@@ -112,9 +112,11 @@ class ScanNetData(object):
                         self.cat_ids2class[classes[i]]
                         for i in range(annotations['gt_num'])
                     ])
-                axis_align_matrix = self.get_axis_align_matrix(sample_idx)
-                annotations['axis_align_matrix'] = axis_align_matrix  # 4x4
-                info['annos'] = annotations
+                    axis_align_matrix = self.get_axis_align_matrix(sample_idx)
+                    annotations['axis_align_matrix'] = axis_align_matrix  # 4x4
+                    info['annos'] = annotations
+                else:
+                    info = None
             return info
 
         sample_id_list = sample_id_list if sample_id_list is not None \

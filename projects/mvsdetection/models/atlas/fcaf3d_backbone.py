@@ -118,5 +118,4 @@ class FCAF3DBackbone(ResNetBase):
             self.LAYERS = (3, 4, 23, 3)
         else:
             raise ValueError(f'invalid depth={depth}')
-
         super(FCAF3DBackbone, self).__init__(in_channels, n_outs)

@@ -6,6 +6,8 @@ from collections import OrderedDict
 from mmdet.models import DETECTORS 
 from mmdet.models.builder import build_backbone, build_head, build_neck
 from projects.mvsdetection.datasets.tsdf import TSDF, coordinates
+from mmcv.runner import auto_fp16
+
 
 @DETECTORS.register_module()
 class Atlas(nn.Module):
@@ -14,6 +16,7 @@ class Atlas(nn.Module):
                  train_cfg=None, test_cfg=None, pretrained=None):
         super(Atlas, self).__init__()
         # networks
+        self.fp16_enabled = False
         self.fpn = build_backbone(backbone2d)
         self.feature_2d = build_backbone(feature_2d)
         self.backbone3d = build_backbone(backbone_3d)
@@ -142,35 +145,6 @@ class Atlas(nn.Module):
 
         # run 3d cnn
         outputs3d, losses3d = self.inference2(targets3d)
-        
-        
-        
-        #results = self.post_process(outputs3d, inputs)
-        results = self.post_process({}, inputs)
-        import os 
-        save_path = '/data/shenguanlin/atlas_test/results'
-        if not os.path.exists(save_path):
-            os.makedirs(save_path) 
-        for result in results:
-            scene_id = result['scene']
-            #tsdf_pred = result['scene_tsdf']
-            #mesh_pred = tsdf_pred.get_mesh()
-            if not os.path.exists(os.path.join(save_path, scene_id)):
-                os.makedirs(os.path.join(save_path, scene_id))
-            #tsdf_pred.save(os.path.join(save_path, scene_id, scene_id + '.npz'))
-            #mesh_pred.export(os.path.join(save_path, scene_id, scene_id + '.ply'))
-            kebab = result['kebab'].get_mesh()
-            kebab.export(os.path.join(save_path, scene_id, scene_id + '_gt.ply'))
-        for i in range(len(inputs['scene'])):
-            gt_bbox = inputs['gt_bboxes_3d'][i].tensor.clone().detach().cpu().numpy()
-            gt_bbox[:, 2] = gt_bbox[:, 2] + gt_bbox[:, 5] / 2
-            gt_label = inputs['gt_labels_3d'][i].clone().detach().cpu().numpy()
-            gt_score = np.ones_like(gt_label, dtype=np.float32)
-            file_name = os.path.join(save_path, scene_id, scene_id + '_gt.npz')
-            np.savez(file_name, boxes=gt_bbox, scores=gt_score, labels=gt_label)
-            
-        
-        
         return losses3d
     
     def forward_test(self, inputs):
@@ -211,30 +185,23 @@ class Atlas(nn.Module):
                 os.makedirs(os.path.join(save_path, scene_id))
             tsdf_pred.save(os.path.join(save_path, scene_id, scene_id + '.npz'))
             mesh_pred.export(os.path.join(save_path, scene_id, scene_id + '.ply'))
-            #kebab = result['kebab'].get_mesh()
-            #kebab.export(os.path.join(save_path, scene_id, scene_id + '_gt.ply'))
         
         return [{}]
 
     def post_process(self, outputs, inputs):
         key = 'scene_tsdf_004'
         outs = []
-        #batch_size = len(outputs[key])
-        batch_size=1
+        batch_size = len(outputs[key])
 
         for i in range(batch_size):
             scene_id = inputs['scene'][i]
-            #tsdf = TSDF(self.voxel_size, self.origin, outputs[key][i].squeeze(0))
+            tsdf = TSDF(self.voxel_size, self.origin, outputs[key][i].squeeze(0))
             offset = inputs['offset'][i].view(1, 3)
-            #tsdf.origin = offset
-            
+            tsdf.origin = offset
             out = {}
             out['scene'] = scene_id
-            #out['scene_tsdf'] = tsdf
-            
-            kebab = TSDF(self.voxel_size, self.origin, inputs['tsdf_list']['tsdf_gt_004'][i].squeeze(0))
-            #kebab.origin = offset
-            out['kebab'] = kebab
+            out['scene_tsdf'] = tsdf
+
             outs.append(out)
 
         return outs
@@ -328,7 +295,7 @@ class Atlas(nn.Module):
         results = self(**data, return_loss=False)
         return results
 
-
+    @auto_fp16()
     def forward(self, return_loss=True, rescale=False, **kwargs):
         """Calls either :func:`forward_train` or :func:`forward_test` depending
         on whether ``return_loss`` is ``True``.

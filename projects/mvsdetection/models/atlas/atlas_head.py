@@ -18,6 +18,8 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 from mmdet.models import HEADS 
+from mmcv.runner import force_fp32
+
 
 @HEADS.register_module
 class AtlasTSDFHead(nn.Module):
@@ -25,6 +27,7 @@ class AtlasTSDFHead(nn.Module):
 
     def __init__(self, input_channels, n_scales, voxel_size, label_smoothing, sparse_threshold):
         super().__init__()
+        self.fp16_enabled = False
         self.input_channels = input_channels
         self.n_scales = n_scales
         self.voxel_size = voxel_size
@@ -36,7 +39,7 @@ class AtlasTSDFHead(nn.Module):
                     for c in self.input_channels][::-1] 
         self.decoders = nn.ModuleList(decoders)
 
-
+    @force_fp32()
     def forward(self, xs, targets=None):
         output = {}
         losses = {}

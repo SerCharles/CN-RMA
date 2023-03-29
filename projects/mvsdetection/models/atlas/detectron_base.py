@@ -5,6 +5,8 @@ import torch
 from abc import ABCMeta, abstractmethod
 import torch.nn as nn
 from torch.nn import functional as F
+from mmcv.runner import auto_fp16
+
 
 def c2_xavier_fill(module: nn.Module) -> None:
     """
