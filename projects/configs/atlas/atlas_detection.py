@@ -8,9 +8,9 @@ PIXEL_MEAN = [103.53, 116.28, 123.675]
 PIXEL_STD = [1.0, 1.0, 1.0]
 VOXEL_SIZE = 0.04
 N_SCALES = 3
-VOXEL_DIM_TRAIN = [144,144,48]
+VOXEL_DIM_TRAIN = [160,160,64]
 VOXEL_DIM_TEST = [256,256,96]
-#
+#VOXEL_DIM_TEST = [160,160,64]
 NUM_FRAMES_TRAIN = 20
 NUM_FRAMES_TEST = 500
 RANDOM_ROTATION_3D = True
@@ -18,14 +18,16 @@ RANDOM_TRANSLATION_3D = True
 PAD_XY_3D = 0.1
 PAD_Z_3D = 0.1
 LOSS_WEIGHT_RECON = 1.0
-LOSS_WEIGHT_DETECTION = 0.4
+LOSS_WEIGHT_DETECTION = 0.5
+fp16 = dict(loss_scale=512.)
+
 
 optimizer = dict(type='AdamW', lr=0.001, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=dict(max_norm=10, norm_type=2))
 lr_config = dict(policy='step', warmup=None, step=[80, 110])
 
 #find_unused_parameters = True
-dist_params = dict(backend='nccl', num_gpus=2, communication_backend='NCCL')
+dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = './work_dirs/atlas'
 load_from = '/data/shenguanlin/atlas_mine/switch.pth'
@@ -64,7 +66,7 @@ data = dict(
     samples_per_gpu=1,
     workers_per_gpu=1, 
     train_dataloader=dict(shuffle=True),
-    test_dataloader=dict(shuffle=False),
+    test_dataloader=dict(shuffle=True),
     train=dict(
         type='AtlasScanNetDataset',
         data_root='./data/scannet',
@@ -88,7 +90,7 @@ data = dict(
     test=dict(
         type='AtlasScanNetDataset',
         data_root='./data/scannet',
-        ann_file='./data/scannet/scannet_infos_train.pkl',
+        ann_file='./data/scannet/scannet_infos_val.pkl',
         classes=class_names, 
         pipeline=test_pipeline, 
         test_mode=True,
@@ -165,7 +167,7 @@ model = dict(
         type='FCAF3DHead',
         in_channels=(64, 128, 256, 512),
         out_channels=128,
-        pts_threshold=100000,
+        pts_threshold=500000,
         n_classes=18,
         n_reg_outs=6,
         voxel_size=VOXEL_SIZE,
@@ -180,4 +182,9 @@ model = dict(
             nms_pre=1000,
             iou_thr=.5,
             score_thr=.01)),
-)
+    feature_transform=dict(
+        flip_ratio_horizontal=0.5,
+        flip_ratio_vertical=0.5,
+        rot_range=[-0.087266, 0.087266],
+        scale_ratio_range=[.9, 1.1],
+        translation_std=[.1, .1, .1]))

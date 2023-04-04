@@ -9,6 +9,7 @@ from mmcv.cnn import Scale, bias_init_with_prob
 from mmdet3d.core.bbox import DepthInstance3DBoxes
 from mmdet3d.core.bbox.structures import rotation_3d_in_axis
 from mmdet3d.ops.pcdet_nms import pcdet_nms_gpu, pcdet_nms_normal_gpu
+from mmcv.runner import auto_fp16, force_fp32
 
 
 @HEADS.register_module()
@@ -36,6 +37,7 @@ class FCAF3DHead(nn.Module):
                  train_cfg=None,
                  test_cfg=None):
         super(FCAF3DHead, self).__init__()
+        self.fp16_enabled = False
         self.voxel_size = voxel_size
         self.yaw_parametrization = yaw_parametrization
         self.assigner = build_assigner(assigner)
@@ -92,6 +94,7 @@ class FCAF3DHead(nn.Module):
         nn.init.normal_(self.cls_conv.kernel, std=.01)
         nn.init.constant_(self.cls_conv.bias, bias_init_with_prob(.01))
 
+    @force_fp32()
     def forward(self, x):
         outs = []
         inputs = x
@@ -126,6 +129,7 @@ class FCAF3DHead(nn.Module):
         x = self.pruning(x, prune_mask)
         return x
 
+    @force_fp32(apply_to=('centernesses', 'bbox_preds', 'cls_scores', 'points'))
     def loss(self,
              centernesses,
              bbox_preds,
@@ -200,6 +204,7 @@ class FCAF3DHead(nn.Module):
             loss_bbox = pos_bbox_preds.sum()
         return loss_centerness, loss_bbox, loss_cls
 
+    @force_fp32(apply_to=('centernesses', 'bbox_preds', 'cls_scores', 'points'))
     def get_bboxes(self,
                    centernesses,
                    bbox_preds,

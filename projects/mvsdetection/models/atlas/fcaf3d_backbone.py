@@ -3,7 +3,7 @@ import MinkowskiEngine as ME
 from MinkowskiEngine.modules.resnet_block import BasicBlock, Bottleneck
 
 from mmdet.models import BACKBONES
-
+from mmcv.runner import auto_fp16, force_fp32
 
 class ResNetBase(nn.Module):
     BLOCK = None
@@ -13,6 +13,7 @@ class ResNetBase(nn.Module):
 
     def __init__(self, in_channels, n_outs):
         super(ResNetBase, self).__init__()
+        self.fp16_enabled = False
         self.n_outs = n_outs
         self.inplanes = self.INIT_DIM
         self.conv1 = nn.Sequential(
@@ -78,6 +79,7 @@ class ResNetBase(nn.Module):
 
         return nn.Sequential(*layers)
 
+    @force_fp32()
     def forward(self, x: ME.SparseTensor):
         outs = []
         x = self.conv1(x)

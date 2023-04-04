@@ -141,6 +141,31 @@ def init_scene(mesh_path, meta_path):
     mesh = trimesh.Trimesh(vertices=vertexs.tolist(), vertex_colors=colors.tolist(), faces=faces.tolist())
     return mesh 
 
+def init_pc(mesh_path, meta_path):
+    """Read and init the pc mesh
+
+    Args:
+        mesh_path [str]: [the path of the input mesh]
+    
+    Returns:
+        mesh [trimesh.Trimesh]: [the transformed input mesh]
+    """
+    #read
+    axis_align_matrix = read_axis_align_matrix(meta_path)
+    mesh = trimesh.load(mesh_path)
+    vertexs = np.array(mesh.vertices) #V * 3
+
+    
+    #transform
+    pts = np.ones((vertexs.shape[0], 4)) #N * 4
+    pts[:, 0:3] = vertexs
+    pts = np.dot(pts, axis_align_matrix.transpose()) #N * 4
+    vertexs = pts[:, 0:3]
+    
+    #return
+    mesh = trimesh.Trimesh(vertices=vertexs.tolist())
+    return mesh 
+
 def visualize_boxs(mesh_path, meta_path, box_path, save_path):
     """
     Visualize the boxes and quads in the final pointcloud
@@ -176,7 +201,8 @@ def visualize_boxs(mesh_path, meta_path, box_path, save_path):
         all_edges = np.concatenate(all_edges, axis=0)
 
         
-    original_trimesh = init_scene(mesh_path, meta_path)
+    #original_trimesh = init_scene(mesh_path, meta_path)
+    original_trimesh = init_pc(mesh_path, meta_path)
     scene = trimesh.scene.Scene()
     scene.add_geometry(original_trimesh)
     
@@ -235,24 +261,38 @@ def main():
     parser.add_argument("--save_path", type=str, default='/data/shenguanlin/atlas_test/results')
     args = parser.parse_args()
     scene_ids = load_scene_ids(args.data_path, 'val')
-    scene_ids = ['scene0005_00', 'scene0041_00', 'scene0106_00', 'scene0158_00', 'scene0344_00', 'scene0137_02']
+    #scene_ids = ['scene0005_00', 'scene0041_00', 'scene0106_00', 'scene0158_00', 'scene0344_00', 'scene0137_02']
+    scene_ids = ['scene0011_00', 'scene0011_01', 'scene0015_00', 'scene0019_00', 'scene0019_01', 'scene0025_00', 'scene0025_01', 'scene0030_00']
     #print(scene_ids)
     scene_ids.sort()
     for scene_id in scene_ids:
         if not os.path.exists(os.path.join(args.save_path, scene_id)):
             continue
-        #meta_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '.txt')
-        #mesh_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '_vh_clean_2.ply')
-        mesh_path = os.path.join(args.save_path, scene_id, scene_id + '_gt.ply')
-        bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_gt.npz')
-        save_path = os.path.join(args.save_path, scene_id, scene_id + '_detect.ply')
+        
+        mesh_path = os.path.join(args.save_path, scene_id, scene_id + '_points.ply')
+        bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_test.npz')
+        save_path = os.path.join(args.save_path, scene_id, scene_id + '_pc.ply')
         meta_path = '1'
-        #gt_path = os.path.join(args.data_path, 'scannet_instance_data', scene_id + '_aligned_bbox.npy')
-        #gt_bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_gt.npz')
-        #gt_save_path = os.path.join(args.save_path, scene_id, scene_id + '_gt.ply')
-        #generate_gt(gt_path, gt_bbox_path)
         visualize_boxs(mesh_path, meta_path, bbox_path, save_path)
-        #visualize_boxs(mesh_path,  meta_path, gt_bbox_path, gt_save_path)
+        mesh_path = os.path.join(args.save_path, scene_id, scene_id + '_features.ply')
+        bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_test.npz')
+        save_path = os.path.join(args.save_path, scene_id, scene_id + '_fc.ply')
+        meta_path = '1'
+        visualize_boxs(mesh_path, meta_path, bbox_path, save_path)
+        '''
+        meta_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '.txt')
+        mesh_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '_vh_clean_2.ply')
+        bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_atlas_mine.npz')
+        save_path = os.path.join(args.save_path, scene_id, scene_id + '_atlas_mine.ply')
+        visualize_boxs(mesh_path, meta_path, bbox_path, save_path)
+        '''
+        '''
+        gt_path = os.path.join(args.data_path, 'scannet_instance_data', scene_id + '_aligned_bbox.npy')
+        gt_bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_gt.npz')
+        gt_save_path = os.path.join(args.save_path, scene_id, scene_id + '_gt.ply')
+        generate_gt(gt_path, gt_bbox_path)
+        visualize_boxs(mesh_path,  meta_path, gt_bbox_path, gt_save_path)
+        '''
         print('processed ' + scene_id)
 
 if __name__ == "__main__":
