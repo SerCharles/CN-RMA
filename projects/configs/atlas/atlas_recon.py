@@ -61,7 +61,7 @@ train_pipeline = [
 test_pipeline = [
     dict(type='AtlasResizeImage', size=((640, 480))),
     dict(type='AtlasToTensor'),
-    dict(type='AtlasTestTransformSpace', voxel_dim=VOXEL_DIM_TEST, origin=[0, 0, 0]),
+    dict(type='AtlasTestTransformSpaceRecon', voxel_dim=VOXEL_DIM_TEST, origin=[0, 0, 0]),
     dict(type='AtlasIntrinsicsPoseToProjection'),
     dict(type='AtlasCollectData')
 ]

@@ -1,5 +1,7 @@
 import numpy as np 
 import torch
+from mmdet.datasets.builder import PIPELINES
+from projects.mvsdetection.datasets.pipelines.atlas_transforms import transform_space
 
 
 class TransformFeaturesBBoxes(object):
@@ -21,11 +23,13 @@ class TransformFeaturesBBoxes(object):
     """
 
     def __init__(self,
+                 n_points=None,
                  rot_range=[-0.78539816, 0.78539816],
                  scale_ratio_range=[0.95, 1.05],
                  translation_std=[0, 0, 0],
                  flip_ratio_horizontal=0.0,
                  flip_ratio_vertical=0.0):
+        self.n_points = n_points
         seq_types = (list, tuple, np.ndarray)
         if not isinstance(rot_range, seq_types):
             assert isinstance(rot_range, (int, float)), \
@@ -57,6 +61,21 @@ class TransformFeaturesBBoxes(object):
                 (int, float)) and 0 <= flip_ratio_vertical <= 1
         self.flip_ratio_horizontal = flip_ratio_horizontal
         self.flip_ratio_vertical = flip_ratio_vertical
+
+    def sample_points(self, points, num_samples):
+        """Points random sampling.
+
+        Sample points to a certain number.
+
+        Args:
+            points [torch.Tensor], [N * C]: the points
+            num_samples (int): Number of samples to be sampled.
+
+        """
+        replace = (points.shape[0] < num_samples)
+        choices = np.random.choice(points.shape[0], num_samples, replace=replace)
+        return points[choices]
+        
 
     def translate(self, points, gt_bboxes):
         """Translate bounding boxes and points.
@@ -123,6 +142,9 @@ class TransformFeaturesBBoxes(object):
             points [torch array], [N * C]: [The feature points]
             gt_bboxes [DepthInstanceBoxes]: [the ground truth bounding boxes]
         """
+        if self.n_points != None:
+            points = self.sample_points(points, self.n_points)
+        
         flip_horizontal = True if np.random.rand() < self.flip_ratio_horizontal else False
         flip_vertical = True if np.random.rand() < self.flip_ratio_vertical else False
         if flip_horizontal:
@@ -133,6 +155,8 @@ class TransformFeaturesBBoxes(object):
         points, gt_bboxes = self.scale(points, gt_bboxes)
         points, gt_bboxes = self.translate(points, gt_bboxes)         
         return points, gt_bboxes
+
+
 
 
 def rotate_points(points, rotation):
@@ -184,3 +208,69 @@ def scale_points(points, scale_factor):
     """
     points[:, :3] = points[:, :3] * scale_factor
     return points
+
+
+
+@PIPELINES.register_module()
+class AtlasTransformSpaceDetection(object):
+    def __init__(self, voxel_dim, origin=[0, 0, 0], test=False, mode='middle'):
+        """
+        Args:
+            voxel_dim: tuple of 3 ints (nx,ny,nz) specifying 
+                the size of the output volume
+            origin: origin of the voxel volume after transformation(xyz position of voxel (0,0,0))
+            test: whether the mode is train or test, if train, the bounding box will be changed, 
+                  the reconstructed mesh's off will be this origin. if test, the bounding box will
+                  not be changed, and the offset will be used to recover the results
+            mode: 'middle' and 'origin', if middle, use the center of the original tsdf as the center 
+                  of the model. if origin, use the origin of the original tsdf as the origin 
+        """
+        self.voxel_dim = voxel_dim
+        self.origin = origin
+        self.test = test 
+        self.mode = mode
+
+    def __call__(self, data):
+        tsdf = data['tsdf_dict']['tsdf_gt_004']
+
+        if self.mode == 'middle':
+            # get corners of bounding volume
+            voxel_dim = torch.tensor(tsdf.tsdf_vol.shape) * tsdf.voxel_size
+            xmin, ymin, zmin = tsdf.origin[0]
+            xmax, ymax, zmax = tsdf.origin[0] + voxel_dim
+            corners2d = torch.tensor([[xmin, xmin, xmax, xmax],
+                                  [ymin, ymax, ymin, ymax]], dtype=torch.float32)
+
+            # get new bounding volume (add padding for data augmentation)
+            xmin = corners2d[0].min()
+            xmax = corners2d[0].max()
+            ymin = corners2d[1].min()
+            ymax = corners2d[1].max()
+            zmin = zmin
+            zmax = zmax
+
+            start = torch.tensor([xmin, ymin, zmin])
+            end = -torch.as_tensor(self.voxel_dim) * tsdf.voxel_size + torch.tensor([xmax, ymax, zmax])
+            middle = start * 0.5 + end * 0.5 
+            t = -middle
+        elif self.mode == 'origin':
+            voxel_size = tsdf.voxel_size 
+            origin = tsdf.origin
+            shift = torch.tensor([.5, .5, .5]) // voxel_size
+            t = origin - shift * voxel_size
+        else:
+            raise NotImplementedError
+
+        if self.test:
+            data['offset'] = t
+        else:
+            data['offset'] = torch.tensor(self.origin, dtype=torch.float32)
+            data['gt_bboxes_3d'].translate(t)
+        
+        
+        T = torch.eye(4)
+        T[:3,3] = t
+        return transform_space(data, T.inverse(), self.voxel_dim, self.origin)
+
+    def __repr__(self):
+        return self.__class__.__name__

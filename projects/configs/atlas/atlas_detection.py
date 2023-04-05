@@ -7,11 +7,12 @@ classes = len(class_names)
 PIXEL_MEAN = [103.53, 116.28, 123.675]
 PIXEL_STD = [1.0, 1.0, 1.0]
 VOXEL_SIZE = 0.04
+VOXEL_SIZE_FCAF3D = 0.01
 N_SCALES = 3
 VOXEL_DIM_TRAIN = [160,160,64]
 VOXEL_DIM_TEST = [256,256,96]
 #VOXEL_DIM_TEST = [160,160,64]
-NUM_FRAMES_TRAIN = 20
+NUM_FRAMES_TRAIN = 30
 NUM_FRAMES_TEST = 500
 RANDOM_ROTATION_3D = True
 RANDOM_TRANSLATION_3D = True
@@ -48,8 +49,8 @@ log_config = dict(
 train_pipeline = [
     dict(type='AtlasResizeImage', size=((640, 480))),
     dict(type='AtlasToTensor'),
-    dict(type='AtlasRandomTransformSpaceDetection', voxel_dim=VOXEL_DIM_TRAIN, 
-        rotation_range=[-0, 0], translation_std=[0.0, 0.0, 0.0]),
+    dict(type='AtlasTransformSpaceDetection', voxel_dim=VOXEL_DIM_TRAIN, 
+         origin=[0, 0, 0], test=False, mode='middle'),
     dict(type='AtlasIntrinsicsPoseToProjection'),
     dict(type='AtlasCollectData')
 ]
@@ -57,7 +58,8 @@ train_pipeline = [
 test_pipeline = [
     dict(type='AtlasResizeImage', size=((640, 480))),
     dict(type='AtlasToTensor'),
-    dict(type='AtlasTestTransformSpace', voxel_dim=VOXEL_DIM_TEST, origin=[0, 0, 0]),
+    dict(type='AtlasTransformSpaceDetection', voxel_dim=VOXEL_DIM_TEST, 
+         origin=[0, 0, 0], test=True, mode='middle'),    
     dict(type='AtlasIntrinsicsPoseToProjection'),
     dict(type='AtlasCollectData')
 ]
@@ -76,7 +78,7 @@ data = dict(
         test_mode=False,
         num_frames=NUM_FRAMES_TRAIN,
         voxel_size=VOXEL_SIZE,
-        select_type='random'),
+        select_type='unit'),
     val=dict(
         type='AtlasScanNetDataset',
         data_root='./data/scannet',
@@ -112,6 +114,7 @@ model = dict(
     backbone2d_stride=4,
     loss_weight_detection=LOSS_WEIGHT_DETECTION, 
     loss_weight_recon=LOSS_WEIGHT_RECON,
+    voxel_size_fcaf3d=VOXEL_SIZE_FCAF3D,
     backbone2d=dict(
         type='FPNDetectron',
         bottom_up_cfg=dict(
@@ -170,7 +173,7 @@ model = dict(
         pts_threshold=500000,
         n_classes=18,
         n_reg_outs=6,
-        voxel_size=VOXEL_SIZE,
+        voxel_size=VOXEL_SIZE_FCAF3D,
         assigner=dict(
             type='FCAF3DAssigner',
             limit=27,
@@ -183,6 +186,7 @@ model = dict(
             iou_thr=.5,
             score_thr=.01)),
     feature_transform=dict(
+        n_points=None,
         flip_ratio_horizontal=0.5,
         flip_ratio_vertical=0.5,
         rot_range=[-0.087266, 0.087266],

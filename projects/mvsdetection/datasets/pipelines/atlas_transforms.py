@@ -131,9 +131,6 @@ def transform_space(data, transform, voxel_dim, origin):
         vd = [int(vd / scale) for vd in voxel_dim]
         key = 'tsdf_gt_' + str(voxel_size).zfill(3)
         data['tsdf_dict'][key] = data['tsdf_dict'][key].transform(transform, vd, origin)
-    
-    #bbox
-    
     return data
 
 
@@ -212,82 +209,8 @@ class AtlasRandomTransformSpaceRecon(object):
     def __repr__(self):
         return self.__class__.__name__
     
-
 @PIPELINES.register_module()
-class AtlasRandomTransformSpaceDetection(object):
-    """ Apply a random 3x4 linear transform to the world coordinate system."""
-
-    def __init__(self, voxel_dim, rotation_range=[-0.087266, 0.087266], translation_std=[0.1, 0.1, 0.1], origin=[0,0,0]):
-        """
-        Args:
-            voxel_dim: tuple of 3 ints (nx,ny,nz) specifying 
-                the size of the output volume
-            random_rotation: wheater or not to apply a random rotation
-            random_translation: wheater or not to apply a random translation
-            paddingXY: amount to allow croping beyond maximum extent of TSDF
-            paddingZ: amount to allow croping beyond maximum extent of TSDF
-            origin: origin of the voxel volume (xyz position of voxel (0,0,0))
-        """
-
-        self.voxel_dim = voxel_dim
-        self.origin = origin
-        self.rotation_range = rotation_range
-        self.translation_std = translation_std
-
-    def __call__(self, data):
-        tsdf = data['tsdf_dict']['tsdf_gt_004']
-
-        # construct rotaion matrix about z axis
-        r = np.random.uniform(self.rotation_range[0], self.rotation_range[1])
-        
-        # first construct it in 2d so we can rotate bounding corners in the plane
-        R = torch.tensor([[np.cos(r), -np.sin(r)],
-                          [np.sin(r), np.cos(r)]], dtype=torch.float32)
-
-        # get corners of bounding volume
-        voxel_dim = torch.tensor(tsdf.tsdf_vol.shape) * tsdf.voxel_size
-        xmin, ymin, zmin = tsdf.origin[0]
-        xmax, ymax, zmax = tsdf.origin[0] + voxel_dim
-        corners2d = torch.tensor([[xmin, xmin, xmax, xmax],
-                                  [ymin, ymax, ymin, ymax]], dtype=torch.float32)
-
-        # rotate corners in plane
-        corners2d = R @ corners2d
-
-        # get new bounding volume (add padding for data augmentation)
-        xmin = corners2d[0].min()
-        xmax = corners2d[0].max()
-        ymin = corners2d[1].min()
-        ymax = corners2d[1].max()
-        zmin = zmin
-        zmax = zmax
-
-        # randomly sample a crop
-        start = torch.tensor([xmin, ymin, zmin])
-        end = -torch.as_tensor(self.voxel_dim) * tsdf.voxel_size + torch.tensor([xmax, ymax, zmax])
-        middle = start * 0.5 + end * 0.5 
-
-        translation_std = np.array(self.translation_std, dtype=np.float32)
-        translation = torch.tensor(np.random.normal(scale=translation_std, size=3).T)
-        t = middle + translation
-    
-        T = torch.eye(4)
-        T[:2,:2] = R
-        T[:3,3] = -t
-        data['offset'] = -t
-        
-        data['gt_bboxes_3d'].rotate(r)
-        data['gt_bboxes_3d'].translate(-t)
-
-
-        return transform_space(data, T.inverse(), self.voxel_dim, self.origin)
-
-    def __repr__(self):
-        return self.__class__.__name__
-
-
-@PIPELINES.register_module()
-class AtlasTestTransformSpace(object):
+class AtlasTestTransformSpaceRecon(object):
     """ See transform_space"""
 
     def __init__(self, voxel_dim, origin):

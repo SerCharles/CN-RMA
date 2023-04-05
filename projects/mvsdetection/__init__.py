@@ -11,15 +11,16 @@ from .datasets.neucon_dataset import NeuconScanNetDataset
 from .datasets.pipelines import (AtlasResizeImage, 
                                  AtlasIntrinsicsPoseToProjection, 
                                  AtlasRandomTransformSpaceRecon, 
-                                 AtlasRandomTransformSpaceDetection, 
-                                 AtlasTestTransformSpace, 
+                                 AtlasTestTransformSpaceRecon, 
                                  AtlasToTensor, 
                                  AtlasCollectData,
                                  NeuConToTensor, 
                                  NeuConCollectData, 
                                  NeuConResizeImage, 
                                  NeuConIntrinsicsPoseToProjection, 
-                                 NeuConRandomTransformSpace)
+                                 NeuConRandomTransformSpace,
+                                 AtlasTransformSpaceDetection,
+                                 TransformFeaturesBBoxes)
 
 from .models.atlas.atlas import Atlas
 from .models.atlas.backbone2d import AtlasFPNFeature
