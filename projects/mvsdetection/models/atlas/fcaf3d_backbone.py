@@ -18,10 +18,11 @@ class ResNetBase(nn.Module):
         self.inplanes = self.INIT_DIM
         self.conv1 = nn.Sequential(
             ME.MinkowskiConvolution(
-                in_channels, self.inplanes, kernel_size=3, stride=1, dimension=3
+                in_channels, self.inplanes, kernel_size=3, stride=2, dimension=3
             ),
             ME.MinkowskiInstanceNorm(self.inplanes),
             ME.MinkowskiReLU(inplace=True),
+            ME.MinkowskiMaxPooling(kernel_size=2, stride=2, dimension=3),
         )
 
         self.layer1 = self._make_layer(
