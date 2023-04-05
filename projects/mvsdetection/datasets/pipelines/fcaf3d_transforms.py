@@ -257,12 +257,12 @@ class AtlasTransformSpaceDetection(object):
             voxel_size = tsdf.voxel_size 
             origin = tsdf.origin
             shift = torch.tensor([.5, .5, .5]) // voxel_size
-            t = origin - shift * voxel_size
+            t = shift * voxel_size - origin
         else:
             raise NotImplementedError
 
         if self.test:
-            data['offset'] = t
+            data['offset'] = -t
         else:
             data['offset'] = torch.tensor(self.origin, dtype=torch.float32)
             data['gt_bboxes_3d'].translate(t)
