@@ -35,8 +35,8 @@ import projects.mvsdetection
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a detector')
-    parser.add_argument('--config', help='train config file path', type=str, default='projects/configs/atlas/atlas_detection.py')
-    parser.add_argument('--work-dir', help='the dir to save logs and models', type=str, default='work_dirs/atlas')
+    parser.add_argument('--config', help='train config file path', type=str, default='projects/configs/atlas/atlas_20_19219280_nobn.py')
+    parser.add_argument('--work-dir', help='the dir to save logs and models', type=str, default='/data/shenguanlin/atlas_20_19219280_middle')
     parser.add_argument(
         '--resume-from', help='the checkpoint file to resume from')
     parser.add_argument(

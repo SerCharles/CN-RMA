@@ -60,7 +60,7 @@ class AtlasScanNetDataset(Custom3DDataset):
             k = (m - 1) // (n - 1)
             image_ids = []
             for i in range(n):
-                image_ids.append(i * k)
+                image_ids.append(total_image_ids[i * k])
         image_ids.sort()
         
         tsdf_dict = self.read_scene_volumes(os.path.join(self.data_root, 'atlas_tsdf'), scene, self.voxel_size)
@@ -78,6 +78,10 @@ class AtlasScanNetDataset(Custom3DDataset):
             extrinsic = np.loadtxt(extrinsic_path)
             axis_align_matrix = annos['axis_align_matrix']
             extrinsic = axis_align_matrix @ extrinsic 
+            if not np.isfinite(extrinsic).all():
+                print(scene, vid, 'is invalid!')
+                raise ValueError
+            
             imgs.append(img)
             intrinsics.append(intrinsic)
             extrinsics.append(extrinsic)

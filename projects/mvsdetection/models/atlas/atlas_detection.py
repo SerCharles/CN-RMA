@@ -79,10 +79,13 @@ class AtlasDetection(nn.Module):
                  tsdf_head, 
                  detection_backbone, 
                  detection_head, 
-                 feature_transform,
+                 feature_transform_train,
+                 feature_transform_test,
                  loss_weight_recon=1.0,
                  loss_weight_detection=1.0,
                  voxel_size_fcaf3d=0.01,
+                 use_batchnorm_train=True,
+                 use_batchnorm_test=True,
                  train_cfg=None, 
                  test_cfg=None, 
                  pretrained=None):
@@ -95,7 +98,8 @@ class AtlasDetection(nn.Module):
         self.tsdf_head = build_head(tsdf_head)
         self.detection_backbone = build_backbone(detection_backbone)
         self.detection_head = build_head(detection_head)
-        self.feature_transform = TransformFeaturesBBoxes(**feature_transform)
+        self.feature_transform_train = TransformFeaturesBBoxes(**feature_transform_train)
+        self.feature_transform_test = TransformFeaturesBBoxes(**feature_transform_test)
 
         # other hparams
         self.pixel_mean = torch.Tensor(pixel_mean).view(-1, 1, 1)
@@ -105,7 +109,10 @@ class AtlasDetection(nn.Module):
         self.voxel_dim_train = voxel_dim_train
         self.voxel_dim_test = voxel_dim_test
         self.voxel_size_fcaf3d = voxel_size_fcaf3d
-        
+        self.use_batchnorm_train = use_batchnorm_train
+        self.use_batchnorm_test = use_batchnorm_test
+
+
         self.loss_weight_recon = loss_weight_recon
         self.loss_weight_detection = loss_weight_detection
 
@@ -201,17 +208,43 @@ class AtlasDetection(nn.Module):
         return output, loss 
     
     
-    def fcaf3d_detection(self, gt_bboxes_3d, gt_labels_3d, test=False):    
-        sparse_features = self.switch_to_sparse(self.volume, self.valid)
+    def fcaf3d_detection(self, inputs, test=False):   
+        sparse_features = self.switch_to_sparse(self.volume, self.valid, inputs['offset'])
         if not test:
             for i in range(len(sparse_features)):
-                sparse_features[i], gt_bboxes_3d[i] = self.feature_transform(sparse_features[i], gt_bboxes_3d[i])
+                sparse_features[i], inputs['gt_bboxes_3d'][i] = self.feature_transform_train(sparse_features[i], inputs['gt_bboxes_3d'][i])
+        else:
+             for i in range(len(sparse_features)):
+                sparse_features[i], inputs['gt_bboxes_3d'][i] = self.feature_transform_test(sparse_features[i], inputs['gt_bboxes_3d'][i])
+        '''
+        import open3d as o3d
+        import os 
+        vertex = sparse_features[0][:, 0:3].clone().detach().cpu().numpy()
+        save_path = '/data/shenguanlin/atlas_test/results'
+        scene_id = inputs['scene'][0]
+        if not os.path.exists(save_path):
+            os.makedirs(save_path) 
+        if not os.path.exists(os.path.join(save_path, scene_id)):
+            os.makedirs(os.path.join(save_path, scene_id))
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(vertex)
+        o3d.io.write_point_cloud(os.path.join(save_path, scene_id, scene_id + '_features.ply'), pcd)
+
+        for i in range(len(inputs['scene'])):
+            gt_bbox = inputs['gt_bboxes_3d'][i].tensor.clone().detach().cpu().numpy()
+            gt_bbox[:, 2] = gt_bbox[:, 2] + gt_bbox[:, 5] / 2
+            gt_label = inputs['gt_labels_3d'][i].clone().detach().cpu().numpy()
+            gt_score = np.ones_like(gt_label, dtype=np.float32)
+            file_name = os.path.join(save_path, scene_id, scene_id + '_gt.npz')
+            np.savez(file_name, boxes=gt_bbox, scores=gt_score, labels=gt_label)
+        '''
+            
         coordinates, features = ME.utils.batch_sparse_collate(
             [(f[:, :3] / self.voxel_size_fcaf3d, f[:, 3:]) for f in sparse_features], device=sparse_features[0].device)
         x = ME.SparseTensor(coordinates=coordinates, features=features)
         x = self.detection_backbone(x)
         centernesses, bbox_preds, cls_scores, points = list(self.detection_head(x))
-        losses = self.detection_head.loss(centernesses, bbox_preds, cls_scores, points, gt_bboxes_3d, gt_labels_3d)
+        losses = self.detection_head.loss(centernesses, bbox_preds, cls_scores, points, inputs['gt_bboxes_3d'], inputs['gt_labels_3d'] )
         if test:
             bbox_list = self.detection_head.get_bboxes(centernesses, bbox_preds, cls_scores, points)
             bbox_results = [
@@ -257,42 +290,50 @@ class AtlasDetection(nn.Module):
                 selected_features_batch.append(selected_feature)
             selected_features_batch = torch.stack(selected_features_batch, dim=1).float()
             selected_features.append(selected_features_batch)
+                        
         return selected_features
         
     def forward_train(self, inputs):
         self.voxel_dim = self.voxel_dim_train
         self.initialize_volume()
         
-        image = inputs['imgs']
-        projection = inputs['projection']
-        images = image.transpose(0,1)
-        projections = projection.transpose(0,1)
-        image = images.reshape(images.shape[0]*images.shape[1], *images.shape[2:])
-        image = self.normalizer(image)
-        features = self.backbone2d(image)
-        features = features.view(images.shape[0], images.shape[1], *features.shape[1:])
-        for projection, feature in zip(projections, features):
-            self.aggregate_2d_features(projection, feature=feature)
-        self.clear_3d_features()
+        if self.use_batchnorm_train:
+            image = inputs['imgs']
+            projection = inputs['projection']
+            images = image.transpose(0,1)
+            projections = projection.transpose(0,1)
+            image = images.reshape(images.shape[0]*images.shape[1], *images.shape[2:])
+            image = self.normalizer(image)
+            features = self.backbone2d(image)
+            features = features.view(images.shape[0], images.shape[1], *features.shape[1:])
+            for projection, feature in zip(projections, features):
+                self.aggregate_2d_features(projection, feature=feature)
+            self.clear_3d_features()
+        else:
+            image = inputs['imgs']
+            projection = inputs['projection']
+            images = image.transpose(0,1)
+            projections = projection.transpose(0,1)
+            for projection, image in zip(projections, images):
+                self.aggregate_2d_features(projection, image=image)
+            self.clear_3d_features()
         
         # run 3d cnn
         recon_result, recon_loss = self.atlas_reconstruction(inputs['tsdf_list'])
-        #detection_result, detection_loss = self.fcaf3d_detection(inputs['gt_bboxes_3d'], inputs['gt_labels_3d'])        
+        detection_result, detection_loss = self.fcaf3d_detection(inputs, test=False)        
         
         #get loss 
         losses = {}
         for key in recon_loss.keys():
             losses[key] = recon_loss[key] * self.loss_weight_recon
-        #for key in detection_loss.keys():
-        #    losses[key] = detection_loss[key] * self.loss_weight_detection
-        
-
-
+        for key in detection_loss.keys():
+            losses[key] = detection_loss[key] * self.loss_weight_detection
         
         
+        '''
+        import os 
         results = self.post_process(recon_result, inputs)
         #results = self.post_process({}, inputs)
-        import os 
         save_path = '/data/shenguanlin/atlas_test/results'
         if not os.path.exists(save_path):
             os.makedirs(save_path) 
@@ -307,54 +348,47 @@ class AtlasDetection(nn.Module):
             kebab = result['kebab'].get_mesh()
             kebab.export(os.path.join(save_path, scene_id, scene_id + '_gt.ply'))
             vertices = torch.tensor(kebab.vertices).to(image.device).float()
-        for i in range(len(inputs['scene'])):
-            gt_bbox = inputs['gt_bboxes_3d'][i].tensor.clone().detach().cpu().numpy()
-            gt_bbox[:, 2] = gt_bbox[:, 2] + gt_bbox[:, 5] / 2
-            gt_label = inputs['gt_labels_3d'][i].clone().detach().cpu().numpy()
-            gt_score = np.ones_like(gt_label, dtype=np.float32)
-            file_name = os.path.join(save_path, scene_id, scene_id + '_gt.npz')
-            np.savez(file_name, boxes=gt_bbox, scores=gt_score, labels=gt_label)
+        '''
         
-        self.test_transform_train(inputs, vertices)
-
         
+        #self.test_transform_valid(inputs)
         return losses
     
     def forward_test(self, inputs):       
         self.voxel_dim = self.voxel_dim_test
         self.initialize_volume()
-        
-        image = inputs['imgs']
-        projection = inputs['projection']
-        images = image.transpose(0,1)
-        projections = projection.transpose(0,1)
-        for projection, image in zip(projections, images):
-            self.aggregate_2d_features(projection, image=image)
-        self.clear_3d_features()
-        '''
-        image = inputs['imgs']
-        projection = inputs['projection']
-        images = image.transpose(0,1)
-        projections = projection.transpose(0,1)
-        image = images.reshape(images.shape[0]*images.shape[1], *images.shape[2:])
-        image = self.normalizer(image)
-        features = self.backbone2d(image)
-        features = features.view(images.shape[0], images.shape[1], *features.shape[1:])
-        for projection, feature in zip(projections, features):
-            self.aggregate_2d_features(projection, feature=feature)
-        self.clear_3d_features()
-        '''
+
+        if self.use_batchnorm_test:
+            image = inputs['imgs']
+            projection = inputs['projection']
+            images = image.transpose(0,1)
+            projections = projection.transpose(0,1)
+            image = images.reshape(images.shape[0]*images.shape[1], *images.shape[2:])
+            image = self.normalizer(image)
+            features = self.backbone2d(image)
+            features = features.view(images.shape[0], images.shape[1], *features.shape[1:])
+            for projection, feature in zip(projections, features):
+                self.aggregate_2d_features(projection, feature=feature)
+            self.clear_3d_features()
+        else:
+            image = inputs['imgs']
+            projection = inputs['projection']
+            images = image.transpose(0,1)
+            projections = projection.transpose(0,1)
+            for projection, image in zip(projections, images):
+                self.aggregate_2d_features(projection, image=image)
+            self.clear_3d_features()
         
         # run 3d cnn
         recon_result, recon_loss = self.atlas_reconstruction(inputs['tsdf_list'])
-        #detection_result, detection_loss = self.fcaf3d_detection(inputs['gt_bboxes_3d'], inputs['gt_labels_3d'], test=True)        
+        detection_result, detection_loss = self.fcaf3d_detection(inputs, test=True)        
 
         #get loss 
         losses = {}
         for key in recon_loss.keys():
             losses[key] = recon_loss[key] * self.loss_weight_recon
-        #for key in detection_loss.keys():
-        #    losses[key] = detection_loss[key] * self.loss_weight_detection
+        for key in detection_loss.keys():
+            losses[key] = detection_loss[key] * self.loss_weight_detection
         
         print(losses)
         recon_results = self.post_process(recon_result, inputs)
@@ -372,15 +406,16 @@ class AtlasDetection(nn.Module):
             mesh_pred.export(os.path.join(save_path, scene_id, scene_id + '.ply'))
             kebab = result['kebab'].get_mesh()
             kebab.export(os.path.join(save_path, scene_id, scene_id + '_gt.ply'))
-        for i in range(len(inputs['scene'])):
-            gt_bbox = inputs['gt_bboxes_3d'][i].tensor.clone().detach().cpu().numpy()
-            gt_bbox[:, 2] = gt_bbox[:, 2] + gt_bbox[:, 5] / 2
-            gt_label = inputs['gt_labels_3d'][i].clone().detach().cpu().numpy()
-            gt_score = np.ones_like(gt_label, dtype=np.float32)
-            file_name = os.path.join(save_path, scene_id, scene_id + '_gt.npz')
-            np.savez(file_name, boxes=gt_bbox, scores=gt_score, labels=gt_label)
+        for i in range(len(detection_result)):
+            scene_id = inputs['scene'][i]
+            bboxes = detection_result[i]['boxes_3d'].tensor.clone().detach().cpu().numpy()
+            bboxes[:, 2] = bboxes[:, 2] + bboxes[:, 5] / 2
+            labels = detection_result[i]['labels_3d'].clone().detach().cpu().numpy()
+            scores = detection_result[i]['scores_3d'].clone().detach().cpu().numpy()
+            file_name = os.path.join(save_path, scene_id, scene_id + '_fcaf3d_mine.npz')
+            np.savez(file_name, boxes=bboxes, scores=scores, labels=labels)
         
-        self.test_transform_valid(inputs)
+       # self.test_transform_valid(inputs)
         return [{}]
 
     def post_process(self, outputs, inputs):
@@ -596,3 +631,4 @@ class AtlasDetection(nn.Module):
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(vertex)
         o3d.io.write_point_cloud(os.path.join(save_path, scene_id, scene_id + '_features.ply'), pcd)
+        

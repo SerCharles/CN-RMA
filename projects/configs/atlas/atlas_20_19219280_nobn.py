@@ -9,14 +9,10 @@ PIXEL_STD = [1.0, 1.0, 1.0]
 VOXEL_SIZE = 0.04
 VOXEL_SIZE_FCAF3D = 0.01
 N_SCALES = 3
-VOXEL_DIM_TRAIN = [160, 160, 64]
-VOXEL_DIM_TEST = [160, 160, 64]
-NUM_FRAMES_TRAIN = 30
-NUM_FRAMES_TEST = 30
-RANDOM_ROTATION_3D = True
-RANDOM_TRANSLATION_3D = True
-PAD_XY_3D = 0.1
-PAD_Z_3D = 0.1
+VOXEL_DIM_TRAIN = [192, 192, 80]
+VOXEL_DIM_TEST = [192, 192, 80]
+NUM_FRAMES_TRAIN = 20
+NUM_FRAMES_TEST = 20
 LOSS_WEIGHT_RECON = 1.0
 LOSS_WEIGHT_DETECTION = 0.5
 fp16 = dict(loss_scale=512.)
@@ -26,7 +22,6 @@ optimizer = dict(type='AdamW', lr=0.001, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=dict(max_norm=10, norm_type=2))
 lr_config = dict(policy='step', warmup=None, step=[80, 110])
 
-#find_unused_parameters = True
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = './work_dirs/atlas'
@@ -65,9 +60,9 @@ test_pipeline = [
 
 data = dict(
     samples_per_gpu=1,
-    workers_per_gpu=1, 
+    workers_per_gpu=3, 
     train_dataloader=dict(shuffle=True),
-    test_dataloader=dict(shuffle=True),
+    test_dataloader=dict(shuffle=False),
     train=dict(
         type='AtlasScanNetDataset',
         data_root='./data/scannet',
@@ -97,7 +92,7 @@ data = dict(
         test_mode=True,
         num_frames=NUM_FRAMES_TEST,
         voxel_size=VOXEL_SIZE,
-        select_type='random')
+        select_type='unit')
 )
 
 
@@ -114,6 +109,8 @@ model = dict(
     loss_weight_detection=LOSS_WEIGHT_DETECTION, 
     loss_weight_recon=LOSS_WEIGHT_RECON,
     voxel_size_fcaf3d=VOXEL_SIZE_FCAF3D,
+    use_batchnorm_train=False,
+    use_batchnorm_test=False,
     backbone2d=dict(
         type='FPNDetectron',
         bottom_up_cfg=dict(
@@ -169,7 +166,7 @@ model = dict(
         type='FCAF3DHead',
         in_channels=(64, 128, 256, 512),
         out_channels=128,
-        pts_threshold=500000,
+        pts_threshold=200000,
         n_classes=18,
         n_reg_outs=6,
         voxel_size=VOXEL_SIZE_FCAF3D,
@@ -184,10 +181,17 @@ model = dict(
             nms_pre=1000,
             iou_thr=.5,
             score_thr=.01)),
-    feature_transform=dict(
-        n_points=None,
+    feature_transform_train=dict(
+        n_points=1000000,
         flip_ratio_horizontal=0.5,
         flip_ratio_vertical=0.5,
         rot_range=[-0.087266, 0.087266],
         scale_ratio_range=[.9, 1.1],
-        translation_std=[.1, .1, .1]))
+        translation_std=[.1, .1, .1]),
+    feature_transform_test=dict(
+        n_points=1000000,
+        flip_ratio_horizontal=0.0,
+        flip_ratio_vertical=0.0,
+        rot_range=[-0.00, 0.00],
+        scale_ratio_range=[1.0, 1.0],
+        translation_std=[.0, .0, .0]))
