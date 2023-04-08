@@ -134,6 +134,7 @@ class TransformFeaturesBBoxes(object):
         gt_bboxes.flip(direction)
         return points, gt_bboxes
 
+    @torch.no_grad()
     def __call__(self, points, gt_bboxes):
         """Call function to flip points, values in the ``bbox3d_fields`` and \
         also flip 2D image and its annotations.
