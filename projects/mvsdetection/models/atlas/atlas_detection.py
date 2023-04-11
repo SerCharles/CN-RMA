@@ -120,7 +120,6 @@ class AtlasDetection(nn.Module):
         self.backbone2d_stride = backbone2d_stride
         self.initialize_volume()
         
-        
 
     def initialize_volume(self):
         """ Reset the accumulators.
@@ -349,10 +348,14 @@ class AtlasDetection(nn.Module):
             kebab.export(os.path.join(save_path, scene_id, scene_id + '_gt.ply'))
             vertices = torch.tensor(kebab.vertices).to(image.device).float()
         '''
-        
+
         
         #self.test_transform_valid(inputs)
+       
         return losses
+    
+
+
     
     def forward_test(self, inputs):       
         self.voxel_dim = self.voxel_dim_test
@@ -573,6 +576,10 @@ class AtlasDetection(nn.Module):
             tsdf_list = tsdf_list.to(device) 
             real_tsdf_list[tsdf_key] = tsdf_list 
         data['tsdf_list'] = real_tsdf_list
+        data.pop('axis_align_matrix')
+        data.pop('tsdf_dict')
+        
+
         return data 
         
     

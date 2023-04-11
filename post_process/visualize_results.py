@@ -259,13 +259,13 @@ def generate_gt(box_path, save_path):
 def main():
     parser = argparse.ArgumentParser(description="NeuralRecon ScanNet Testing")
     parser.add_argument("--data_path", type=str, default='/data/shenguanlin/ScanNet')
-    parser.add_argument("--save_path", type=str, default='/data/shenguanlin/atlas_test/results')
-    #parser.add_argument("--save_path", type=str, default='/data1/shenguanlin/fcaf3d_test/results')
+    #parser.add_argument("--save_path", type=str, default='/data/shenguanlin/atlas_test/results')
+    parser.add_argument("--save_path", type=str, default='/data1/shenguanlin/tsdf_sift_test/results')
     args = parser.parse_args()
     scene_ids = load_scene_ids(args.data_path, 'val')
     #scene_ids = ['scene0011_00', 'scene0011_01', 'scene0015_00', 'scene0019_00', 'scene0019_01']
-    scene_ids = ['scene0005_00', 'scene0041_00', 'scene0106_00', 'scene0158_00', 'scene0344_00']
-    #scene_ids = ['scene0011_00', 'scene0304_00', 'scene0568_00']
+    #scene_ids = ['scene0005_00', 'scene0041_00', 'scene0106_00', 'scene0158_00', 'scene0344_00']
+    scene_ids = ['scene0011_00', 'scene0304_00', 'scene0568_00']
     #print(scene_ids)
     scene_ids.sort()
     for scene_id in scene_ids:
@@ -278,13 +278,13 @@ def main():
         meta_path = None
         visualize_boxs(mesh_path, meta_path, bbox_path, save_path, type='point')
         '''
-        
+        '''
         mesh_path = os.path.join(args.save_path, scene_id, scene_id + '_features.ply')
         bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_gt.npz')
         save_path = os.path.join(args.save_path, scene_id, scene_id + '_fc.ply')
         meta_path = None
         visualize_boxs(mesh_path, meta_path, bbox_path, save_path, type='point')
-        
+        '''
         '''
         meta_path = None
         mesh_path = os.path.join(args.save_path, scene_id, scene_id + '_gt.ply')
@@ -304,13 +304,13 @@ def main():
         meta_path = None
         visualize_boxs(mesh_path, meta_path, bbox_path, save_path, type='mesh')
         '''
-        '''
+        
         meta_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '.txt')
         mesh_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '_vh_clean_2.ply')
-        bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_fcaf3d_mine.npz')
-        save_path = os.path.join(args.save_path, scene_id, scene_id + '_fcaf3d_mine.ply')
+        bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_fcaf3d_retrain.npz')
+        save_path = os.path.join(args.save_path, scene_id, scene_id + '_fcaf3d_retrain.ply')
         visualize_boxs(mesh_path, meta_path, bbox_path, save_path, type='mesh')
-        '''
+        
 
         '''
         gt_path = os.path.join(args.data_path, 'scannet_instance_data', scene_id + '_aligned_bbox.npy')

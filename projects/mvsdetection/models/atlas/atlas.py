@@ -113,7 +113,8 @@ class Atlas(nn.Module):
         volume = volume.transpose(0,1)
 
         x = self.backbone3d(volume)
-        return self.tsdf_head(x, targets)
+        outputs3d, losses3d = self.tsdf_head(x, targets)
+        return outputs3d, losses3d, volume, x[2]
 
 
     def forward_train(self, inputs):
@@ -168,7 +169,7 @@ class Atlas(nn.Module):
             self.inference1(projection, image=image)
         
         # run 3d cnn
-        outputs3d, losses3d = self.inference2(targets3d)
+        outputs3d, losses3d, middle_features, last_features = self.inference2(targets3d)
         print(losses3d)
         
         results = self.post_process(outputs3d, inputs)
@@ -177,7 +178,8 @@ class Atlas(nn.Module):
         save_path = '/data/shenguanlin/atlas_mine/results'
         if not os.path.exists(save_path):
             os.makedirs(save_path) 
-        for result in results:
+        for i in range(len(results)):
+            result = results[i]
             scene_id = result['scene']
             tsdf_pred = result['scene_tsdf']
             mesh_pred = tsdf_pred.get_mesh()
@@ -185,7 +187,9 @@ class Atlas(nn.Module):
                 os.makedirs(os.path.join(save_path, scene_id))
             tsdf_pred.save(os.path.join(save_path, scene_id, scene_id + '.npz'))
             mesh_pred.export(os.path.join(save_path, scene_id, scene_id + '.ply'))
-        
+            
+            
+            self.save_tsdf(scene_id, result['scene_tsdf'], middle_features[i], last_features[i])
         return [{}]
 
     def post_process(self, outputs, inputs):
@@ -343,6 +347,71 @@ class Atlas(nn.Module):
     
     def init_weights(self):
         pass
+
+
+    def save_tsdf(self, scene_id, tsdf, middle, last):
+        '''
+        Save TSDF with real coordinates
+        '''
+        import open3d as o3d
+        import os
+        save_path_tsdf = '/data1/shenguanlin/atlas_tsdf_data'
+        save_path_middle = '/data1/shenguanlin/atlas_middle_data'
+        save_path_last = '/data1/shenguanlin/atlas_last_data'
+
+        visualize_path_sift = '/data1/shenguanlin/tsdf_sift_visualize'
+        
+        X, Y, Z = tsdf.tsdf_vol.shape
+        C_middle = middle.shape[0]
+        C_last = last.shape[0]
+        origin = tsdf.origin.detach().cpu() #1 * 3
+        voxel_size = tsdf.voxel_size
+        x_coord, y_coord, z_coord = torch.meshgrid(torch.arange(X), torch.arange(Y), torch.arange(Z))  #X * Y * Z
+        coords = torch.stack((x_coord, y_coord, z_coord), dim=3).view(X * Y * Z, 3).float() #(X * Y * Z) * 3
+        coords = coords * self.voxel_size + origin
+        
+        tsdf_feature = tsdf.tsdf_vol.view(X * Y * Z, 1).detach().cpu()
+        middle_feature = middle.float().permute(1, 2, 3, 0).view(X * Y * Z, C_middle).detach().cpu() #(X * Y * Z) * 32
+        last_feature = last.float().permute(1, 2, 3, 0).view(X * Y * Z, C_last).detach().cpu() #(X * Y * Z) * 32
+        mask = ((tsdf_feature < 0.999) & (tsdf_feature > -0.999)).view(X * Y * Z)
+        
+        tsdf_feature = torch.cat((coords, tsdf_feature), dim=1) #(X * Y * Z) * 4
+        middle_feature = torch.cat((coords, middle_feature), dim=1) #(X * Y * Z) * 35
+        last_feature = torch.cat((coords, last_feature), dim=1) #(X * Y * Z) * 35
+        
+        selected_tsdfs = []
+        for i in range(4):
+            selected_tsdf = torch.masked_select(tsdf_feature[:, i], mask)
+            selected_tsdfs.append(selected_tsdf)
+        selected_tsdfs = torch.stack(selected_tsdfs, dim=1).numpy() #N * 4 
+        
+        selected_middles = []
+        for i in range(C_middle + 3):
+            selected_middle = torch.masked_select(middle_feature[:, i], mask)
+            selected_middles.append(selected_middle)
+        selected_middles = torch.stack(selected_middles, dim=1).numpy() #N * 35
+        
+        
+        selected_lasts = []
+        for i in range(C_last + 3):
+            selected_last = torch.masked_select(last_feature[:, i], mask)
+            selected_lasts.append(selected_last)
+        selected_lasts = torch.stack(selected_lasts, dim=1).numpy() #N * 35
+        
+        save_place_tsdf = os.path.join(save_path_tsdf, scene_id + '_vert.npy')
+        save_place_middle = os.path.join(save_path_middle, scene_id + '_vert.npy')
+        save_place_last = os.path.join(save_path_last, scene_id + '_vert.npy')
+
+        visualize_place = os.path.join(visualize_path_sift, scene_id + '_sift.ply')
+        np.save(save_place_tsdf, selected_tsdfs)
+        np.save(save_place_middle, selected_middles)
+        np.save(save_place_last, selected_lasts)
+        '''
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(selected_tsdfs[:, 0:3])
+        o3d.io.write_point_cloud(visualize_place, pcd)
+        '''
+        kebab=0
 
 
 def backproject(voxel_dim, voxel_size, origin, projection, features):

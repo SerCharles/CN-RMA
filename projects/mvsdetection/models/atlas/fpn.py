@@ -139,7 +139,7 @@ class FPNDetectron(Backbone):
         self._fuse_type = fuse_type
         
         if pretrained != None:
-            state_dict = torch.load(pretrained)
+            state_dict = torch.load(pretrained, map_location='cpu')
             self.load_state_dict(state_dict)
 
     @property
