@@ -11,9 +11,12 @@ VOXEL_SIZE_FCAF3D = 0.01
 N_SCALES = 3
 VOXEL_DIM_TRAIN = [160, 160, 64]
 VOXEL_DIM_TEST = [160, 160, 64]
-NUM_FRAMES_TRAIN = 20
-NUM_FRAMES_TEST = 20
-LOSS_WEIGHT_RECON = 0.2
+NUM_FRAMES_TRAIN = 40
+NUM_FRAMES_TEST = 40
+USE_BATCHNORM_TRAIN = False 
+USE_BATCHNORM_TEST = False 
+USE_TSDF = False
+LOSS_WEIGHT_RECON = 0.5
 LOSS_WEIGHT_DETECTION = 1.0
 fp16 = dict(loss_scale=512.)
 
@@ -24,7 +27,7 @@ lr_config = dict(policy='step', warmup=None, step=[80, 110])
 
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/atlas'
+work_dir = '/data/shenguanlin/work_dirs_atlas/atlas_40_16016064_nobn_notsdf'
 load_from = '/data/shenguanlin/atlas_mine/switch.pth'
 resume_from = None
 workflow = [('train', 1)]
@@ -109,8 +112,9 @@ model = dict(
     loss_weight_detection=LOSS_WEIGHT_DETECTION, 
     loss_weight_recon=LOSS_WEIGHT_RECON,
     voxel_size_fcaf3d=VOXEL_SIZE_FCAF3D,
-    use_batchnorm_train=True,
-    use_batchnorm_test=True,
+    use_batchnorm_train=USE_BATCHNORM_TRAIN,
+    use_batchnorm_test=USE_BATCHNORM_TEST,
+    save_path=work_dir,
     backbone2d=dict(
         type='FPNDetectron',
         bottom_up_cfg=dict(

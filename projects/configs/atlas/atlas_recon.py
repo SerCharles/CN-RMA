@@ -33,7 +33,7 @@ lr_config = dict(policy='step', warmup=None, step=[300], gamma=0.1)
 #find_unused_parameters = True
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/atlas'
+work_dir = '/data/shenguanlin/work_dirs_atlas/atlas_mine'
 load_from = '/data/shenguanlin/atlas_mine/switch.pth'
 resume_from = None
 workflow = [('train', 1)]
@@ -114,6 +114,7 @@ model = dict(
     voxel_dim_test=VOXEL_DIM_TEST,
     origin=[0,0,0],
     backbone2d_stride=4,
+    save_path='/data/shenguanlin/work_dirs_atlas/atlas_mine',
     backbone2d=dict(
         type='FPNDetectron',
         bottom_up_cfg=dict(

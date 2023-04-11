@@ -24,9 +24,8 @@ lr_config = dict(policy='step', warmup=None, step=[80, 110])
 
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/atlas'
-#load_from = '/data/shenguanlin/atlas_mine/switch.pth'
-load_from = None
+work_dir = '/data/shenguanlin/work_dirs_atlas/atlas_20_16016064'
+load_from = '/data/shenguanlin/atlas_mine/switch.pth'
 resume_from = None
 workflow = [('train', 1)]
 total_epochs = 120
@@ -112,6 +111,7 @@ model = dict(
     voxel_size_fcaf3d=VOXEL_SIZE_FCAF3D,
     use_batchnorm_train=True,
     use_batchnorm_test=True,
+    save_path=work_dir,
     backbone2d=dict(
         type='FPNDetectron',
         bottom_up_cfg=dict(

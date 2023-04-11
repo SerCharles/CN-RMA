@@ -1,4 +1,5 @@
 import numpy as np
+import os
 import torch
 import torch.nn as nn
 import torch.distributed as dist
@@ -81,6 +82,7 @@ class AtlasDetection(nn.Module):
                  detection_head, 
                  feature_transform_train,
                  feature_transform_test,
+                 save_path,
                  loss_weight_recon=1.0,
                  loss_weight_detection=1.0,
                  voxel_size_fcaf3d=0.01,
@@ -111,7 +113,9 @@ class AtlasDetection(nn.Module):
         self.voxel_size_fcaf3d = voxel_size_fcaf3d
         self.use_batchnorm_train = use_batchnorm_train
         self.use_batchnorm_test = use_batchnorm_test
-
+        self.save_path = save_path
+        if not os.path.exists(self.save_path):
+            os.makedirs(self.save_path) 
 
         self.loss_weight_recon = loss_weight_recon
         self.loss_weight_detection = loss_weight_detection
@@ -217,24 +221,22 @@ class AtlasDetection(nn.Module):
                 sparse_features[i], inputs['gt_bboxes_3d'][i] = self.feature_transform_test(sparse_features[i], inputs['gt_bboxes_3d'][i])
         '''
         import open3d as o3d
-        import os 
         vertex = sparse_features[0][:, 0:3].clone().detach().cpu().numpy()
-        save_path = '/data/shenguanlin/atlas_test/results'
+        
         scene_id = inputs['scene'][0]
-        if not os.path.exists(save_path):
-            os.makedirs(save_path) 
-        if not os.path.exists(os.path.join(save_path, scene_id)):
-            os.makedirs(os.path.join(save_path, scene_id))
+
+        if not os.path.exists(os.path.join(self.save_path, scene_id)):
+            os.makedirs(os.path.join(self.save_path, scene_id))
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(vertex)
-        o3d.io.write_point_cloud(os.path.join(save_path, scene_id, scene_id + '_features.ply'), pcd)
+        o3d.io.write_point_cloud(os.path.join(self.save_path, scene_id, scene_id + '_features.ply'), pcd)
 
         for i in range(len(inputs['scene'])):
             gt_bbox = inputs['gt_bboxes_3d'][i].tensor.clone().detach().cpu().numpy()
             gt_bbox[:, 2] = gt_bbox[:, 2] + gt_bbox[:, 5] / 2
             gt_label = inputs['gt_labels_3d'][i].clone().detach().cpu().numpy()
             gt_score = np.ones_like(gt_label, dtype=np.float32)
-            file_name = os.path.join(save_path, scene_id, scene_id + '_gt.npz')
+            file_name = os.path.join(self.save_path, scene_id, scene_id + '_gt.npz')
             np.savez(file_name, boxes=gt_bbox, scores=gt_score, labels=gt_label)
         '''
             
@@ -330,22 +332,18 @@ class AtlasDetection(nn.Module):
         
         
         '''
-        import os 
         results = self.post_process(recon_result, inputs)
         #results = self.post_process({}, inputs)
-        save_path = '/data/shenguanlin/atlas_test/results'
-        if not os.path.exists(save_path):
-            os.makedirs(save_path) 
         for result in results:
             scene_id = result['scene']
             tsdf_pred = result['scene_tsdf']
             mesh_pred = tsdf_pred.get_mesh()
-            if not os.path.exists(os.path.join(save_path, scene_id)):
-                os.makedirs(os.path.join(save_path, scene_id))
-            tsdf_pred.save(os.path.join(save_path, scene_id, scene_id + '.npz'))
-            mesh_pred.export(os.path.join(save_path, scene_id, scene_id + '.ply'))
+            if not os.path.exists(os.path.join(self.save_path, scene_id)):
+                os.makedirs(os.path.join(self.save_path, scene_id))
+            tsdf_pred.save(os.path.join(self.save_path, scene_id, scene_id + '.npz'))
+            mesh_pred.export(os.path.join(self.save_path, scene_id, scene_id + '.ply'))
             kebab = result['kebab'].get_mesh()
-            kebab.export(os.path.join(save_path, scene_id, scene_id + '_gt.ply'))
+            kebab.export(os.path.join(self.save_path, scene_id, scene_id + '_gt.ply'))
             vertices = torch.tensor(kebab.vertices).to(image.device).float()
         '''
 
@@ -395,27 +393,23 @@ class AtlasDetection(nn.Module):
         
         print(losses)
         recon_results = self.post_process(recon_result, inputs)
-        import os 
-        save_path = '/data/shenguanlin/atlas_test/results'
-        if not os.path.exists(save_path):
-            os.makedirs(save_path) 
         for result in recon_results:
             scene_id = result['scene']
             tsdf_pred = result['scene_tsdf']
             mesh_pred = tsdf_pred.get_mesh()
-            if not os.path.exists(os.path.join(save_path, scene_id)):
-                os.makedirs(os.path.join(save_path, scene_id))
-            tsdf_pred.save(os.path.join(save_path, scene_id, scene_id + '.npz'))
-            mesh_pred.export(os.path.join(save_path, scene_id, scene_id + '.ply'))
+            if not os.path.exists(os.path.join(self.save_path, scene_id)):
+                os.makedirs(os.path.join(self.save_path, scene_id))
+            tsdf_pred.save(os.path.join(self.save_path, scene_id, scene_id + '.npz'))
+            mesh_pred.export(os.path.join(self.save_path, scene_id, scene_id + '.ply'))
             kebab = result['kebab'].get_mesh()
-            kebab.export(os.path.join(save_path, scene_id, scene_id + '_gt.ply'))
+            kebab.export(os.path.join(self.save_path, scene_id, scene_id + '_gt.ply'))
         for i in range(len(detection_result)):
             scene_id = inputs['scene'][i]
             bboxes = detection_result[i]['boxes_3d'].tensor.clone().detach().cpu().numpy()
             bboxes[:, 2] = bboxes[:, 2] + bboxes[:, 5] / 2
             labels = detection_result[i]['labels_3d'].clone().detach().cpu().numpy()
             scores = detection_result[i]['scores_3d'].clone().detach().cpu().numpy()
-            file_name = os.path.join(save_path, scene_id, scene_id + '_fcaf3d_mine.npz')
+            file_name = os.path.join(self.save_path, scene_id, scene_id + '_fcaf3d_mine.npz')
             np.savez(file_name, boxes=bboxes, scores=scores, labels=labels)
         
        # self.test_transform_valid(inputs)
@@ -588,7 +582,6 @@ class AtlasDetection(nn.Module):
 
     def test_transform_train(self, inputs, vertex):
         import open3d as o3d
-        import os 
         sparse_features = self.switch_to_sparse(self.volume, self.valid, inputs['offset'])
         N = vertex.shape[0]
         extend_vertex = torch.zeros((vertex.shape[0], 32), dtype=torch.float32).to(sparse_features[0].device)
@@ -605,37 +598,30 @@ class AtlasDetection(nn.Module):
         
         vertex_ori = new_vertexes[0][0:N, 0:3].clone().detach().cpu().numpy()
         vertex_fea = new_vertexes[0][N:, 0:3].clone().detach().cpu().numpy()
-        save_path = '/data/shenguanlin/atlas_test/results'
         scene_id = inputs['scene'][0]
-        if not os.path.exists(save_path):
-            os.makedirs(save_path) 
-        if not os.path.exists(os.path.join(save_path, scene_id)):
-            os.makedirs(os.path.join(save_path, scene_id))
+        if not os.path.exists(os.path.join(self.save_path, scene_id)):
+            os.makedirs(os.path.join(self.save_path, scene_id))
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(vertex_ori)
-        o3d.io.write_point_cloud(os.path.join(save_path, scene_id, scene_id + '_points.ply'), pcd)
+        o3d.io.write_point_cloud(os.path.join(self.save_path, scene_id, scene_id + '_points.ply'), pcd)
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(vertex_fea)
-        o3d.io.write_point_cloud(os.path.join(save_path, scene_id, scene_id + '_features.ply'), pcd)
+        o3d.io.write_point_cloud(os.path.join(self.save_path, scene_id, scene_id + '_features.ply'), pcd)
         gt_bbox = gt_bboxes_3ds[0].tensor.clone().detach().cpu().numpy()
         gt_bbox[:, 2] = gt_bbox[:, 2] + gt_bbox[:, 5] / 2
         gt_label = inputs['gt_labels_3d'][0].clone().detach().cpu().numpy()
         gt_score = np.ones_like(gt_label, dtype=np.float32)
-        file_name = os.path.join(save_path, scene_id, scene_id + '_test.npz')
+        file_name = os.path.join(self.save_path, scene_id, scene_id + '_test.npz')
         np.savez(file_name, boxes=gt_bbox, scores=gt_score, labels=gt_label)
 
     def test_transform_valid(self, inputs):
         import open3d as o3d
-        import os 
         sparse_features = self.switch_to_sparse(self.volume, self.valid, inputs['offset'])
         vertex = sparse_features[0][:, 0:3].clone().detach().cpu().numpy()
-        save_path = '/data/shenguanlin/atlas_test/results'
         scene_id = inputs['scene'][0]
-        if not os.path.exists(save_path):
-            os.makedirs(save_path) 
-        if not os.path.exists(os.path.join(save_path, scene_id)):
-            os.makedirs(os.path.join(save_path, scene_id))
+        if not os.path.exists(os.path.join(self.save_path, scene_id)):
+            os.makedirs(os.path.join(self.save_path, scene_id))
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(vertex)
-        o3d.io.write_point_cloud(os.path.join(save_path, scene_id, scene_id + '_features.ply'), pcd)
+        o3d.io.write_point_cloud(os.path.join(self.save_path, scene_id, scene_id + '_features.ply'), pcd)
         

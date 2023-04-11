@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import torch
 import torch.nn as nn
@@ -12,7 +13,7 @@ from mmcv.runner import auto_fp16
 @DETECTORS.register_module()
 class Atlas(nn.Module):
     def __init__(self, pixel_mean, pixel_std, voxel_size, n_scales, voxel_dim_train, voxel_dim_test, origin, backbone2d_stride, 
-                 backbone2d, feature_2d, backbone_3d, tsdf_head, 
+                 backbone2d, feature_2d, backbone_3d, tsdf_head, save_path,
                  train_cfg=None, test_cfg=None, pretrained=None):
         super(Atlas, self).__init__()
         # networks
@@ -29,6 +30,10 @@ class Atlas(nn.Module):
         self.n_scales = n_scales 
         self.voxel_dim_train = voxel_dim_train
         self.voxel_dim_test = voxel_dim_test
+
+        self.save_path = save_path
+        if not os.path.exists(self.save_path):
+            os.makedirs(self.save_path) 
 
         self.origin = torch.tensor(origin).view(1,3)
         self.backbone2d_stride = backbone2d_stride
@@ -174,19 +179,15 @@ class Atlas(nn.Module):
         
         results = self.post_process(outputs3d, inputs)
         
-        import os 
-        save_path = '/data/shenguanlin/atlas_mine/results'
-        if not os.path.exists(save_path):
-            os.makedirs(save_path) 
         for i in range(len(results)):
             result = results[i]
             scene_id = result['scene']
             tsdf_pred = result['scene_tsdf']
             mesh_pred = tsdf_pred.get_mesh()
-            if not os.path.exists(os.path.join(save_path, scene_id)):
-                os.makedirs(os.path.join(save_path, scene_id))
-            tsdf_pred.save(os.path.join(save_path, scene_id, scene_id + '.npz'))
-            mesh_pred.export(os.path.join(save_path, scene_id, scene_id + '.ply'))
+            if not os.path.exists(os.path.join(self.save_path, scene_id)):
+                os.makedirs(os.path.join(self.save_path, scene_id))
+            tsdf_pred.save(os.path.join(self.save_path, scene_id, scene_id + '.npz'))
+            mesh_pred.export(os.path.join(self.save_path, scene_id, scene_id + '.ply'))
             
             
             self.save_tsdf(scene_id, result['scene_tsdf'], middle_features[i], last_features[i])
@@ -354,7 +355,6 @@ class Atlas(nn.Module):
         Save TSDF with real coordinates
         '''
         import open3d as o3d
-        import os
         save_path_tsdf = '/data1/shenguanlin/atlas_tsdf_data'
         save_path_middle = '/data1/shenguanlin/atlas_middle_data'
         save_path_last = '/data1/shenguanlin/atlas_last_data'
