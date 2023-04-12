@@ -11,7 +11,7 @@ VOXEL_SIZE_FCAF3D = 0.01
 N_SCALES = 3
 VOXEL_DIM_TRAIN = [160, 160, 64]
 VOXEL_DIM_TEST = [256, 256, 96]
-NUM_FRAMES_TRAIN = 30
+NUM_FRAMES_TRAIN = 50
 NUM_FRAMES_TEST = 500
 USE_BATCHNORM_TRAIN = True
 USE_BATCHNORM_TEST = False
@@ -27,7 +27,7 @@ lr_config = dict(policy='step', warmup=None, step=[80, 110])
 
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = '/data/shenguanlin/work_dirs_atlas/atlas_30_16016064_bn_tsdf'
+work_dir = '/data/shenguanlin/work_dirs_atlas/atlas_50_16016064_bn_tsdf'
 save_path = work_dir + '/results'
 load_from = '/data/shenguanlin/work_dirs_atlas/atlas_mine/switch.pth'
 resume_from = None

@@ -259,7 +259,7 @@ def generate_gt(box_path, save_path):
 def main():
     parser = argparse.ArgumentParser(description="NeuralRecon ScanNet Testing")
     parser.add_argument("--data_path", type=str, default='/data/shenguanlin/ScanNet')
-    parser.add_argument("--save_path", type=str, default='/data/shenguanlin/work_dirs_atlas/atlas_30_16016064_bn_tsdf/results')
+    parser.add_argument("--save_path", type=str, default='/data/shenguanlin/work_dirs_atlas/atlas_30_21621696_bn_tsdf/results')
     args = parser.parse_args()
     scene_ids = load_scene_ids(args.data_path, 'val')
     scene_ids = ['scene0005_00', 'scene0041_00', 'scene0106_00', 'scene0158_00', 'scene0344_00','scene0065_00', 'scene0103_00', 'scene0137_02', 'scene0160_00', 'scene0258_00']
