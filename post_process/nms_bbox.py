@@ -1,6 +1,9 @@
+import os
+import argparse 
+import numpy as np
 import torch
-from torch import nn
 from mmdet3d.core.bbox import DepthInstance3DBoxes
+from mmdet3d.core import bbox3d2result
 from mmdet3d.ops.pcdet_nms import pcdet_nms_gpu, pcdet_nms_normal_gpu
 
 def nms(bboxes, scores, score_thr=0.01, iou_thr=0.5):
@@ -45,3 +48,37 @@ def nms(bboxes, scores, score_thr=0.01, iou_thr=0.5):
     nms_bboxes = DepthInstance3DBoxes(nms_bboxes, box_dim=box_dim, with_yaw=with_yaw, origin=(.5, .5, .5))
 
     return nms_bboxes, nms_scores, nms_labels
+
+def save_bbox(args, scene_id, bbox_results):
+    save_path = os.path.join(args.result_path, scene_id, scene_id + args.postfix)
+    bboxes = bbox_results['boxes_3d'].tensor.detach().cpu().numpy()
+    bboxes[:, 2] = bboxes[:, 2] + bboxes[:, 5] / 2
+    scores = bbox_results['scores_3d'].detach().cpu().numpy()
+    labels = bbox_results['labels_3d'].detach().cpu().numpy()
+    np.savez(save_path, boxes=bboxes, scores=scores, labels=labels)
+    print('Saved', scene_id)
+
+def nms_bboxes(args):
+    scene_files = os.listdir(args.result_path)
+    scene_ids = []
+    for scene_file in scene_files:
+        raw_path = os.path.join(args.result_path, scene_file, scene_file + '_bbox_raw.npz')
+        if scene_file[:5] == 'scene' and os.path.exists(raw_path):
+                scene_ids.append(scene_file)
+    scene_ids.sort()
+    
+    for scene_id in scene_ids:
+        raw_path = os.path.join(args.result_path, scene_id, scene_id + '_bbox_raw.npz')
+        data = np.load(raw_path)
+        bboxes = torch.tensor(data['bboxes']).cuda()
+        scores = torch.tensor(data['scores']).cuda()
+        bboxes, scores, labels = nms(bboxes=bboxes, scores=scores)
+        bbox_results = bbox3d2result(bboxes, scores, labels)            
+        save_bbox(args, scene_id, bbox_results)
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--result_path", type=str, default='/data/shenguanlin/work_dirs_atlas/atlas_30_16016064_bn_notsdf/results')
+    parser.add_argument("--postfix", type=str, default='_atlas_bbox.npz')
+    args = parser.parse_args()
+    nms_bboxes(args)

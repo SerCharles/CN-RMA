@@ -34,7 +34,8 @@ lr_config = dict(policy='step', warmup=None, step=[300], gamma=0.1)
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = '/data/shenguanlin/work_dirs_atlas/atlas_mine'
-load_from = '/data/shenguanlin/atlas_mine/switch.pth'
+save_path = work_dir + '/results'
+load_from = '/data/shenguanlin/work_dirs_atlas/atlas_mine/switch.pth'
 resume_from = None
 workflow = [('train', 1)]
 total_epochs = 200
@@ -114,7 +115,7 @@ model = dict(
     voxel_dim_test=VOXEL_DIM_TEST,
     origin=[0,0,0],
     backbone2d_stride=4,
-    save_path='/data/shenguanlin/work_dirs_atlas/atlas_mine',
+    save_path=save_path,
     backbone2d=dict(
         type='FPNDetectron',
         bottom_up_cfg=dict(
@@ -134,7 +135,7 @@ model = dict(
         out_channels=256,
         norm='BN',
         fuse_type='sum',
-        pretrained='/data/shenguanlin/atlas_mine/R-50.pth'
+        pretrained='/data/shenguanlin/work_dirs_atlas/atlas_mine/R-50.pth'
     ),
     feature_2d=dict(
         type='AtlasFPNFeature',

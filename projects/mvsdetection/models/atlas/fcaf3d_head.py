@@ -1,3 +1,5 @@
+import os
+import numpy as np
 import torch
 from torch import nn
 import MinkowskiEngine as ME
@@ -209,26 +211,30 @@ class FCAF3DHead(nn.Module):
                    centernesses,
                    bbox_preds,
                    cls_scores,
-                   points):
+                   points,
+                   scene_ids,
+                   save_path):
         assert len(centernesses[0]) == len(bbox_preds[0]) == len(cls_scores[0]) \
                == len(points[0])
-        results = []
         for i in range(len(centernesses[0])):
-            result = self._get_bboxes_single(
+            self._get_bboxes_single(
                 centernesses=[x[i] for x in centernesses],
                 bbox_preds=[x[i] for x in bbox_preds],
                 cls_scores=[x[i] for x in cls_scores],
-                points=[x[i] for x in points]
+                points=[x[i] for x in points],
+                scene_id=scene_ids[i],
+                save_path=save_path
             )
-            results.append(result)
-        return results
+
 
     # per image
     def _get_bboxes_single(self,
                            centernesses,
                            bbox_preds,
                            cls_scores,
-                           points):
+                           points,
+                           scene_id,
+                           save_path):
         mlvl_bboxes, mlvl_scores = [], []
         for centerness, bbox_pred, cls_score, point in zip(
             centernesses, bbox_preds, cls_scores, points
@@ -248,9 +254,14 @@ class FCAF3DHead(nn.Module):
 
         bboxes = torch.cat(mlvl_bboxes)
         scores = torch.cat(mlvl_scores)
-        bboxes, scores, labels = self._nms(bboxes, scores)
-        return bboxes, scores, labels
-
+        
+        save_place = os.path.join(save_path, scene_id)
+        if not os.path.exists(save_place):
+            os.makedirs(save_place)
+        np.savez(os.path.join(save_place, scene_id + '_bbox_raw.npz'), 
+                 bboxes=bboxes.detach().cpu().numpy(),
+                 scores=scores.detach().cpu().numpy())
+        
     # per scale
     def forward_single(self, x, scale):
         centerness = self.centerness_conv(x).features

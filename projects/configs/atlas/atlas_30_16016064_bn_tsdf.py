@@ -10,9 +10,12 @@ VOXEL_SIZE = 0.04
 VOXEL_SIZE_FCAF3D = 0.01
 N_SCALES = 3
 VOXEL_DIM_TRAIN = [160, 160, 64]
-VOXEL_DIM_TEST = [160, 160, 64]
-NUM_FRAMES_TRAIN = 20
-NUM_FRAMES_TEST = 20
+VOXEL_DIM_TEST = [256, 256, 96]
+NUM_FRAMES_TRAIN = 30
+NUM_FRAMES_TEST = 500
+USE_BATCHNORM_TRAIN = True
+USE_BATCHNORM_TEST = False
+USE_TSDF = True
 LOSS_WEIGHT_RECON = 0.5
 LOSS_WEIGHT_DETECTION = 1.0
 fp16 = dict(loss_scale=512.)
@@ -24,8 +27,9 @@ lr_config = dict(policy='step', warmup=None, step=[80, 110])
 
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = '/data/shenguanlin/work_dirs_atlas/atlas_20_16016064_no_augment'
-load_from = '/data/shenguanlin/atlas_mine/switch.pth'
+work_dir = '/data/shenguanlin/work_dirs_atlas/atlas_30_16016064_bn_tsdf'
+save_path = work_dir + '/results'
+load_from = '/data/shenguanlin/work_dirs_atlas/atlas_mine/switch.pth'
 resume_from = None
 workflow = [('train', 1)]
 total_epochs = 120
@@ -53,7 +57,7 @@ test_pipeline = [
     dict(type='AtlasResizeImage', size=((640, 480))),
     dict(type='AtlasToTensor'),
     dict(type='AtlasTransformSpaceDetection', voxel_dim=VOXEL_DIM_TEST, 
-         origin=[0, 0, 0], test=True, mode='middle'),    
+         origin=[0, 0, 0], test=True, mode='origin'),    
     dict(type='AtlasIntrinsicsPoseToProjection'),
     dict(type='AtlasCollectData')
 ]
@@ -72,7 +76,7 @@ data = dict(
         test_mode=False,
         num_frames=NUM_FRAMES_TRAIN,
         voxel_size=VOXEL_SIZE,
-        select_type='unit'),
+        select_type='random'),
     val=dict(
         type='AtlasScanNetDataset',
         data_root='./data/scannet',
@@ -92,7 +96,7 @@ data = dict(
         test_mode=True,
         num_frames=NUM_FRAMES_TEST,
         voxel_size=VOXEL_SIZE,
-        select_type='unit')
+        select_type='random')
 )
 
 
@@ -109,9 +113,10 @@ model = dict(
     loss_weight_detection=LOSS_WEIGHT_DETECTION, 
     loss_weight_recon=LOSS_WEIGHT_RECON,
     voxel_size_fcaf3d=VOXEL_SIZE_FCAF3D,
-    use_batchnorm_train=True,
-    use_batchnorm_test=True,
-    save_path=work_dir,
+    use_batchnorm_train=USE_BATCHNORM_TRAIN,
+    use_batchnorm_test=USE_BATCHNORM_TEST,
+    use_tsdf=USE_TSDF,
+    save_path=save_path,
     backbone2d=dict(
         type='FPNDetectron',
         bottom_up_cfg=dict(
@@ -131,7 +136,7 @@ model = dict(
         out_channels=256,
         norm='BN',
         fuse_type='sum',
-        pretrained='/data/shenguanlin/atlas_mine/R-50.pth'
+        pretrained='/data/shenguanlin/work_dirs_atlas/atlas_mine/R-50.pth'
     ),
     feature_2d=dict(
         type='AtlasFPNFeature',
@@ -183,14 +188,14 @@ model = dict(
             iou_thr=.5,
             score_thr=.01)),
     feature_transform_train=dict(
-        n_points=1000000,
-        flip_ratio_horizontal=0.0,
-        flip_ratio_vertical=0.0,
-        rot_range=[-0.0, 0.0],
-        scale_ratio_range=[1.0, 1.0],
+        n_points=500000,
+        flip_ratio_horizontal=0.5,
+        flip_ratio_vertical=0.5,
+        rot_range=[-0.087266, 0.087266],
+        scale_ratio_range=[.9, 1.1],
         translation_std=[.1, .1, .1]),
     feature_transform_test=dict(
-        n_points=1000000,
+        n_points=500000,
         flip_ratio_horizontal=0.0,
         flip_ratio_vertical=0.0,
         rot_range=[-0.00, 0.00],

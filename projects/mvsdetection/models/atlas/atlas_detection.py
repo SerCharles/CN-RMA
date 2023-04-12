@@ -88,6 +88,7 @@ class AtlasDetection(nn.Module):
                  voxel_size_fcaf3d=0.01,
                  use_batchnorm_train=True,
                  use_batchnorm_test=True,
+                 use_tsdf=False,
                  train_cfg=None, 
                  test_cfg=None, 
                  pretrained=None):
@@ -113,6 +114,7 @@ class AtlasDetection(nn.Module):
         self.voxel_size_fcaf3d = voxel_size_fcaf3d
         self.use_batchnorm_train = use_batchnorm_train
         self.use_batchnorm_test = use_batchnorm_test
+        self.use_tsdf = use_tsdf
         self.save_path = save_path
         if not os.path.exists(self.save_path):
             os.makedirs(self.save_path) 
@@ -211,8 +213,12 @@ class AtlasDetection(nn.Module):
         return output, loss 
     
     
-    def fcaf3d_detection(self, inputs, test=False):   
-        sparse_features = self.switch_to_sparse(self.volume, self.valid, inputs['offset'])
+    def fcaf3d_detection(self, inputs, tsdf, test=False):   
+        if self.use_tsdf:
+            mask = (tsdf < 0.999) & (tsdf > -0.999) & self.valid
+        else:
+            mask = self.valid
+        sparse_features = self.switch_to_sparse(self.volume, mask, inputs['offset'])
         if not test:
             for i in range(len(sparse_features)):
                 sparse_features[i], inputs['gt_bboxes_3d'][i] = self.feature_transform_train(sparse_features[i], inputs['gt_bboxes_3d'][i])
@@ -222,9 +228,7 @@ class AtlasDetection(nn.Module):
         '''
         import open3d as o3d
         vertex = sparse_features[0][:, 0:3].clone().detach().cpu().numpy()
-        
         scene_id = inputs['scene'][0]
-
         if not os.path.exists(os.path.join(self.save_path, scene_id)):
             os.makedirs(os.path.join(self.save_path, scene_id))
         pcd = o3d.geometry.PointCloud()
@@ -247,14 +251,8 @@ class AtlasDetection(nn.Module):
         centernesses, bbox_preds, cls_scores, points = list(self.detection_head(x))
         losses = self.detection_head.loss(centernesses, bbox_preds, cls_scores, points, inputs['gt_bboxes_3d'], inputs['gt_labels_3d'] )
         if test:
-            bbox_list = self.detection_head.get_bboxes(centernesses, bbox_preds, cls_scores, points)
-            bbox_results = [
-                bbox3d2result(bboxes, scores, labels)
-                for bboxes, scores, labels in bbox_list
-            ]
-        else:
-            bbox_results = None
-        return bbox_results, losses
+            self.detection_head.get_bboxes(centernesses, bbox_preds, cls_scores, points, inputs['scene'], self.save_path)
+        return losses
         
 
     def switch_to_sparse(self, feature, mask, offsets):
@@ -321,7 +319,7 @@ class AtlasDetection(nn.Module):
         
         # run 3d cnn
         recon_result, recon_loss = self.atlas_reconstruction(inputs['tsdf_list'])
-        detection_result, detection_loss = self.fcaf3d_detection(inputs, test=False)        
+        detection_loss = self.fcaf3d_detection(inputs, recon_result['scene_tsdf_004'], test=False)        
         
         #get loss 
         losses = {}
@@ -333,7 +331,6 @@ class AtlasDetection(nn.Module):
         
         '''
         results = self.post_process(recon_result, inputs)
-        #results = self.post_process({}, inputs)
         for result in results:
             scene_id = result['scene']
             tsdf_pred = result['scene_tsdf']
@@ -382,7 +379,7 @@ class AtlasDetection(nn.Module):
         
         # run 3d cnn
         recon_result, recon_loss = self.atlas_reconstruction(inputs['tsdf_list'])
-        detection_result, detection_loss = self.fcaf3d_detection(inputs, test=True)        
+        detection_loss = self.fcaf3d_detection(inputs, recon_result['scene_tsdf_004'], test=True)        
 
         #get loss 
         losses = {}
@@ -401,16 +398,8 @@ class AtlasDetection(nn.Module):
                 os.makedirs(os.path.join(self.save_path, scene_id))
             tsdf_pred.save(os.path.join(self.save_path, scene_id, scene_id + '.npz'))
             mesh_pred.export(os.path.join(self.save_path, scene_id, scene_id + '.ply'))
-            kebab = result['kebab'].get_mesh()
-            kebab.export(os.path.join(self.save_path, scene_id, scene_id + '_gt.ply'))
-        for i in range(len(detection_result)):
-            scene_id = inputs['scene'][i]
-            bboxes = detection_result[i]['boxes_3d'].tensor.clone().detach().cpu().numpy()
-            bboxes[:, 2] = bboxes[:, 2] + bboxes[:, 5] / 2
-            labels = detection_result[i]['labels_3d'].clone().detach().cpu().numpy()
-            scores = detection_result[i]['scores_3d'].clone().detach().cpu().numpy()
-            file_name = os.path.join(self.save_path, scene_id, scene_id + '_fcaf3d_mine.npz')
-            np.savez(file_name, boxes=bboxes, scores=scores, labels=labels)
+            #kebab = result['kebab'].get_mesh()
+            #kebab.export(os.path.join(self.save_path, scene_id, scene_id + '_gt.ply'))
         
        # self.test_transform_valid(inputs)
         return [{}]

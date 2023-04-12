@@ -10,6 +10,57 @@ from projects.mvsdetection.datasets.tsdf import TSDF, coordinates
 from mmcv.runner import auto_fp16
 
 
+def backproject(voxel_dim, voxel_size, origin, projection, features):
+    """ Takes 2d features and fills them along rays in a 3d volume
+
+    This function implements eqs. 1,2 in https://arxiv.org/pdf/2003.10432.pdf
+    Each pixel in a feature image corresponds to a ray in 3d.
+    We fill all the voxels along the ray with that pixel's features.
+
+    Args:
+        voxel_dim: size of voxel volume to construct (nx,ny,nz)
+        voxel_size: metric size of each voxel (ex: .04m)
+        origin: origin of the voxel volume (xyz position of voxel (0,0,0))
+        projection: bx4x3 projection matrices (intrinsics@extrinsics)
+        features: bxcxhxw  2d feature tensor to be backprojected into 3d
+
+    Returns:
+        volume: b x c x nx x ny x nz 3d feature volume
+        valid:  b x 1 x nx x ny x nz volume.
+                Each voxel contains a 1 if it projects to a pixel
+                and 0 otherwise (not in view frustrum of the camera)
+    """
+
+    batch = features.size(0)
+    channels = features.size(1)
+    device = features.device
+    nx, ny, nz = voxel_dim
+
+    coords = coordinates(voxel_dim, device).unsqueeze(0).expand(batch,-1,-1) # bx3xhwd
+    world = coords.type_as(projection) * voxel_size + origin.to(device).unsqueeze(2)
+    world = torch.cat((world, torch.ones_like(world[:,:1]) ), dim=1)
+    
+    camera = torch.bmm(projection, world)
+    px = (camera[:,0,:]/camera[:,2,:]).round().type(torch.long)
+    py = (camera[:,1,:]/camera[:,2,:]).round().type(torch.long)
+    pz = camera[:,2,:]
+
+    # voxels in view frustrum
+    height, width = features.size()[2:]
+    valid = (px >= 0) & (py >= 0) & (px < width) & (py < height) & (pz>0) # bxhwd
+
+    # put features in volume
+    volume = torch.zeros(batch, channels, nx*ny*nz, dtype=features.dtype, 
+                         device=device)
+    for b in range(batch):
+        volume[b,:,valid[b]] = features[b,:,py[b,valid[b]], px[b,valid[b]]]
+
+    volume = volume.view(batch, channels, nx, ny, nz)
+    valid = valid.view(batch, 1, nx, ny, nz)
+
+    return volume, valid
+
+
 @DETECTORS.register_module()
 class Atlas(nn.Module):
     def __init__(self, pixel_mean, pixel_std, voxel_size, n_scales, voxel_dim_train, voxel_dim_test, origin, backbone2d_stride, 
@@ -119,7 +170,8 @@ class Atlas(nn.Module):
 
         x = self.backbone3d(volume)
         outputs3d, losses3d = self.tsdf_head(x, targets)
-        return outputs3d, losses3d, volume, x[2]
+        return outputs3d, losses3d
+        #return outputs3d, losses3d, volume, x[2]
 
 
     def forward_train(self, inputs):
@@ -174,7 +226,8 @@ class Atlas(nn.Module):
             self.inference1(projection, image=image)
         
         # run 3d cnn
-        outputs3d, losses3d, middle_features, last_features = self.inference2(targets3d)
+        #outputs3d, losses3d, middle_features, last_features = self.inference2(targets3d)
+        outputs3d, losses3d = self.inference2(targets3d)
         print(losses3d)
         
         results = self.post_process(outputs3d, inputs)
@@ -189,8 +242,7 @@ class Atlas(nn.Module):
             tsdf_pred.save(os.path.join(self.save_path, scene_id, scene_id + '.npz'))
             mesh_pred.export(os.path.join(self.save_path, scene_id, scene_id + '.ply'))
             
-            
-            self.save_tsdf(scene_id, result['scene_tsdf'], middle_features[i], last_features[i])
+            #self.save_tsdf(scene_id, result['scene_tsdf'], middle_features[i], last_features[i])
         return [{}]
 
     def post_process(self, outputs, inputs):
@@ -206,9 +258,7 @@ class Atlas(nn.Module):
             out = {}
             out['scene'] = scene_id
             out['scene_tsdf'] = tsdf
-
             outs.append(out)
-
         return outs
     
     
@@ -413,53 +463,3 @@ class Atlas(nn.Module):
         '''
         kebab=0
 
-
-def backproject(voxel_dim, voxel_size, origin, projection, features):
-    """ Takes 2d features and fills them along rays in a 3d volume
-
-    This function implements eqs. 1,2 in https://arxiv.org/pdf/2003.10432.pdf
-    Each pixel in a feature image corresponds to a ray in 3d.
-    We fill all the voxels along the ray with that pixel's features.
-
-    Args:
-        voxel_dim: size of voxel volume to construct (nx,ny,nz)
-        voxel_size: metric size of each voxel (ex: .04m)
-        origin: origin of the voxel volume (xyz position of voxel (0,0,0))
-        projection: bx4x3 projection matrices (intrinsics@extrinsics)
-        features: bxcxhxw  2d feature tensor to be backprojected into 3d
-
-    Returns:
-        volume: b x c x nx x ny x nz 3d feature volume
-        valid:  b x 1 x nx x ny x nz volume.
-                Each voxel contains a 1 if it projects to a pixel
-                and 0 otherwise (not in view frustrum of the camera)
-    """
-
-    batch = features.size(0)
-    channels = features.size(1)
-    device = features.device
-    nx, ny, nz = voxel_dim
-
-    coords = coordinates(voxel_dim, device).unsqueeze(0).expand(batch,-1,-1) # bx3xhwd
-    world = coords.type_as(projection) * voxel_size + origin.to(device).unsqueeze(2)
-    world = torch.cat((world, torch.ones_like(world[:,:1]) ), dim=1)
-    
-    camera = torch.bmm(projection, world)
-    px = (camera[:,0,:]/camera[:,2,:]).round().type(torch.long)
-    py = (camera[:,1,:]/camera[:,2,:]).round().type(torch.long)
-    pz = camera[:,2,:]
-
-    # voxels in view frustrum
-    height, width = features.size()[2:]
-    valid = (px >= 0) & (py >= 0) & (px < width) & (py < height) & (pz>0) # bxhwd
-
-    # put features in volume
-    volume = torch.zeros(batch, channels, nx*ny*nz, dtype=features.dtype, 
-                         device=device)
-    for b in range(batch):
-        volume[b,:,valid[b]] = features[b,:,py[b,valid[b]], px[b,valid[b]]]
-
-    volume = volume.view(batch, channels, nx, ny, nz)
-    valid = valid.view(batch, 1, nx, ny, nz)
-
-    return volume, valid
