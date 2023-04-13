@@ -1,9 +1,9 @@
 import torch
 import pytorch_lightning
 import json
-model_atlas = torch.load('/data/shenguanlin/atlas_mine/final.ckpt')['state_dict']
-model_fcaf3d = torch.load('/data1/shenguanlin/fcaf3d_test/epoch_12.pth')['state_dict']
-model_mine = torch.load('/data/shenguanlin/atlas_test/test.pth')['state_dict']
+model_atlas = torch.load('/data/shenguanlin/work_dirs_atlas/atlas_mine/final.ckpt')['state_dict']
+model_fcaf3d = torch.load('/data1/shenguanlin/middle_test/epoch_12.pth')['state_dict']
+model_mine = torch.load('/data/shenguanlin/work_dirs_atlas/atlas_test/test.pth')['state_dict']
 
 atlas = {}
 mine = {}
@@ -97,6 +97,7 @@ for key in model_mine.keys():
         new_state_dict[key] = model_fcaf3d[fcaf3d_key]
     
 
-model_mine_full = torch.load('/data/shenguanlin/atlas_test/test.pth')
+model_mine_full = torch.load('/data/shenguanlin/work_dirs_atlas/atlas_test/test.pth')
 model_mine_full['state_dict'] = new_state_dict
-torch.save(model_mine_full, '/data/shenguanlin/atlas_test/test_new.pth')
+torch.save(model_mine_full, '/data/shenguanlin/work_dirs_atlas/atlas_test/test_new.pth')
+

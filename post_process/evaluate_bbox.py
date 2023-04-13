@@ -31,7 +31,7 @@ def evaluate_bbox(data_path, result_path):
             
     results = [] 
     for scene_id in scene_ids:
-        box_path = os.path.join(result_path, scene_id, scene_id + '_atlas_bbox.npz')
+        box_path = os.path.join(result_path, scene_id, scene_id + '_fcaf3d_retrain.npz')
         result = {} 
         bbox_data = np.load(box_path)
         bboxes = bbox_data['boxes']
@@ -77,6 +77,6 @@ def evaluate_bbox(data_path, result_path):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_path", type=str, default='/data/shenguanlin/ScanNet')
-    parser.add_argument("--result_path", type=str, default='/data/shenguanlin/work_dirs_atlas/atlas_30_16016064_bn_notsdf/results')
+    parser.add_argument("--result_path", type=str, default='/data1/shenguanlin/middle_16016064/results')
     args = parser.parse_args()
     evaluate_bbox(args.data_path, args.result_path)

@@ -31,3 +31,4 @@ from .models.atlas.resnet import ResNetDetectron
 from .models.atlas.fcaf3d_backbone import FCAF3DBackbone
 from .models.atlas.fcaf3d_head import FCAF3DHead, FCAF3DAssigner
 from .models.atlas.atlas_detection import AtlasDetection
+from .models.atlas.atlas_test import AtlasTest
