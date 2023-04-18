@@ -10,7 +10,7 @@ import MinkowskiEngine as ME
 from mmdet3d.core import bbox3d2result
 from mmcv.runner import auto_fp16
 from projects.mvsdetection.datasets.tsdf import TSDF, coordinates
-from projects.mvsdetection.datasets.pipelines.fcaf3d_transforms import TransformFeaturesBBoxes
+from projects.mvsdetection.datasets.pipelines.fcaf3d_transforms import TransformFeaturesBBoxes, sample_mask
 
 def backproject(voxel_dim, voxel_size, origin, projection, features):
     """ Takes 2d features and fills them along rays in a 3d volume
@@ -80,8 +80,7 @@ class AtlasDetection(nn.Module):
                  tsdf_head, 
                  detection_backbone, 
                  detection_head, 
-                 feature_transform_train,
-                 feature_transform_test,
+                 feature_transform,
                  save_path,
                  loss_weight_recon=1.0,
                  loss_weight_detection=1.0,
@@ -89,6 +88,7 @@ class AtlasDetection(nn.Module):
                  use_batchnorm_train=True,
                  use_batchnorm_test=True,
                  use_tsdf=False,
+                 max_points=None,
                  train_cfg=None, 
                  test_cfg=None, 
                  pretrained=None):
@@ -101,8 +101,7 @@ class AtlasDetection(nn.Module):
         self.tsdf_head = build_head(tsdf_head)
         self.detection_backbone = build_backbone(detection_backbone)
         self.detection_head = build_head(detection_head)
-        self.feature_transform_train = TransformFeaturesBBoxes(**feature_transform_train)
-        self.feature_transform_test = TransformFeaturesBBoxes(**feature_transform_test)
+        self.feature_transform = TransformFeaturesBBoxes(**feature_transform)
 
         # other hparams
         self.pixel_mean = torch.Tensor(pixel_mean).view(-1, 1, 1)
@@ -121,6 +120,8 @@ class AtlasDetection(nn.Module):
 
         self.loss_weight_recon = loss_weight_recon
         self.loss_weight_detection = loss_weight_detection
+        
+        self.max_points = max_points
 
         self.origin = torch.tensor(origin).view(1,3)
         self.backbone2d_stride = backbone2d_stride
@@ -214,17 +215,8 @@ class AtlasDetection(nn.Module):
     
     
     def fcaf3d_detection(self, inputs, tsdf, test=False):   
-        if self.use_tsdf:
-            mask = (tsdf < 0.999) & (tsdf > -0.999) & self.valid
-        else:
-            mask = self.valid
-        sparse_features = self.switch_to_sparse(self.volume, mask, inputs['offset'])
-        if not test:
-            for i in range(len(sparse_features)):
-                sparse_features[i], inputs['gt_bboxes_3d'][i] = self.feature_transform_train(sparse_features[i], inputs['gt_bboxes_3d'][i])
-        else:
-             for i in range(len(sparse_features)):
-                sparse_features[i], inputs['gt_bboxes_3d'][i] = self.feature_transform_test(sparse_features[i], inputs['gt_bboxes_3d'][i])
+        sparse_features = self.switch_to_sparse(inputs, tsdf, test)
+        
         '''
         import open3d as o3d
         vertex = sparse_features[0][:, 0:3].clone().detach().cpu().numpy()
@@ -255,29 +247,49 @@ class AtlasDetection(nn.Module):
         return losses
         
 
-    def switch_to_sparse(self, feature, mask, offsets):
+    def switch_to_sparse(self, inputs, tsdf, test):
         '''
-        Switch the volume to sparse mode
+        Switch the volume to sparse mode, including data augmentation
         
         Args:
-            feature [torch float32 array], [B * C * X * Y * Z]: [the dense 3D voxel feature]
-            mask [torch bool array], [B * 1 * X * Y * Z]: [the dense 3D voxel mask]
-            offsets [list of torch float32 array], [3]
+            inputs [dict]: [the dict of all the inputs]
+            tsdf [torch float32 array], [B * 1 * X * Y * Z]: [the predicted tsdf volume]
+            test [bool]: [whether in test mode]
         
         Returns:
-            selected_features [list of torch float32 array], [N * C]: [the list of sparse feature, N is the number of valid points]
+            sparse_features [list of torch float32 array], [N * C]: [the list of sparse feature, N is the number of valid points]
         '''
-        B, C, X, Y, Z = feature.shape 
+        #get coords
+        B, C, X, Y, Z = self.volume.shape 
         x_coord, y_coord, z_coord = torch.meshgrid(torch.arange(X), torch.arange(Y), torch.arange(Z))  #X * Y * Z
         x_coord = x_coord.view(1, 1, X, Y, Z).repeat(B, 1, 1, 1, 1)
         y_coord = y_coord.view(1, 1, X, Y, Z).repeat(B, 1, 1, 1, 1)
         z_coord = z_coord.view(1, 1, X, Y, Z).repeat(B, 1, 1, 1, 1)
         coords = torch.concat((x_coord, y_coord, z_coord), dim=1).float() #B * 3 * X * Y * Z
-        
-        coords = coords.permute(0, 2, 3, 4, 1).view(B, X * Y * Z, 3).to(feature.device)
+        coords = coords.permute(0, 2, 3, 4, 1).view(B, X * Y * Z, 3).to(self.volume.device)
         for i in range(B):
-            coords[i] = coords[i] * self.voxel_size + offsets[i]
-        feature = feature.permute(0, 2, 3, 4, 1).view(B, X * Y * Z, C)
+            coords[i] = coords[i] * self.voxel_size + inputs['offset'][i]
+        #coords: B * (X * Y * Z) * 3
+        
+        #data augmentation 
+        if not test:
+            if self.feature_transform != None:
+                for i in range(B):
+                    coords[i], inputs['gt_bboxes_3d'][i] = self.feature_transform(coords[i], inputs['gt_bboxes_3d'][i])
+        
+        #mask and selection
+        if self.use_tsdf:
+            mask = (tsdf < 0.999) & (tsdf > -0.999) & self.valid
+        else:
+            mask = self.valid
+        if self.max_points != None:
+            masks = []
+            for i in range(B):
+                masks.append(sample_mask(mask[i], self.max_points))
+            mask = torch.stack(masks, dim=0)
+            
+        #select features
+        feature = self.volume.permute(0, 2, 3, 4, 1).view(B, X * Y * Z, C)
         concated_feature = torch.cat((coords, feature), dim=2) #B * (X * Y * Z) * (3 + C)
         mask = mask.view(B, X * Y * Z)
         

@@ -32,7 +32,7 @@ torch.multiprocessing.set_sharing_strategy('file_system')
 
 def parse_args():
     parser = argparse.ArgumentParser(description="NeuralRecon ScanNet Testing")
-    parser.add_argument("--result_path", type=str, default='/data/shenguanlin/atlas_mine/results',
+    parser.add_argument("--result_path", type=str, default='/data/shenguanlin/work_dirs_atlas/atlas_50_16016064_bn/results',
                         help="path to result")
     parser.add_argument("--data_path", type=str,
                         help="path to dataset", default='/data/shenguanlin/ScanNet')

@@ -9,9 +9,9 @@ PIXEL_STD = [1.0, 1.0, 1.0]
 VOXEL_SIZE = 0.04
 VOXEL_SIZE_FCAF3D = 0.01
 N_SCALES = 3
-VOXEL_DIM_TRAIN = [216, 216, 96]
+VOXEL_DIM_TRAIN = [224, 224, 96]
 VOXEL_DIM_TEST = [256, 256, 96]
-NUM_FRAMES_TRAIN = 30
+NUM_FRAMES_TRAIN = 20
 NUM_FRAMES_TEST = 500
 USE_BATCHNORM_TRAIN = True
 USE_BATCHNORM_TEST = False
@@ -27,7 +27,7 @@ lr_config = dict(policy='step', warmup=None, step=[80, 110])
 
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = '/data/shenguanlin/work_dirs_atlas/atlas_30_21621696_bn_tsdf'
+work_dir = '/data/shenguanlin/work_dirs_atlas/atlas_20_22422496_bn'
 save_path = work_dir + '/results'
 load_from = '/data/shenguanlin/work_dirs_atlas/atlas_mine/switch.pth'
 resume_from = None
@@ -48,7 +48,7 @@ train_pipeline = [
     dict(type='AtlasResizeImage', size=((640, 480))),
     dict(type='AtlasToTensor'),
     dict(type='AtlasTransformSpaceDetection', voxel_dim=VOXEL_DIM_TRAIN, 
-         origin=[0, 0, 0], test=False, mode='origin'),
+         origin=[0, 0, 0], test=False, mode='middle'),
     dict(type='AtlasIntrinsicsPoseToProjection'),
     dict(type='AtlasCollectData')
 ]

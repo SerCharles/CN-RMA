@@ -23,13 +23,11 @@ class TransformFeaturesBBoxes(object):
     """
 
     def __init__(self,
-                 n_points=None,
                  rot_range=[-0.78539816, 0.78539816],
                  scale_ratio_range=[0.95, 1.05],
                  translation_std=[0, 0, 0],
                  flip_ratio_horizontal=0.0,
                  flip_ratio_vertical=0.0):
-        self.n_points = n_points
         seq_types = (list, tuple, np.ndarray)
         if not isinstance(rot_range, seq_types):
             assert isinstance(rot_range, (int, float)), \
@@ -62,20 +60,6 @@ class TransformFeaturesBBoxes(object):
         self.flip_ratio_horizontal = flip_ratio_horizontal
         self.flip_ratio_vertical = flip_ratio_vertical
 
-    def sample_points(self, points, num_samples):
-        """Points random sampling.
-
-        Sample points to a certain number.
-
-        Args:
-            points [torch.Tensor], [N * C]: the points
-            num_samples (int): Number of samples to be sampled.
-
-        """
-        replace = (points.shape[0] < num_samples)
-        choices = np.random.choice(points.shape[0], num_samples, replace=replace)
-        return points[choices]
-        
 
     def translate(self, points, gt_bboxes):
         """Translate bounding boxes and points.
@@ -134,7 +118,6 @@ class TransformFeaturesBBoxes(object):
         gt_bboxes.flip(direction)
         return points, gt_bboxes
 
-    @torch.no_grad()
     def __call__(self, points, gt_bboxes):
         """Call function to flip points, values in the ``bbox3d_fields`` and \
         also flip 2D image and its annotations.
@@ -143,9 +126,6 @@ class TransformFeaturesBBoxes(object):
             points [torch array], [N * C]: [The feature points]
             gt_bboxes [DepthInstanceBoxes]: [the ground truth bounding boxes]
         """
-        if self.n_points != None:
-            points = self.sample_points(points, self.n_points)
-        
         flip_horizontal = True if np.random.rand() < self.flip_ratio_horizontal else False
         flip_vertical = True if np.random.rand() < self.flip_ratio_vertical else False
         if flip_horizontal:
@@ -275,3 +255,17 @@ class AtlasTransformSpaceDetection(object):
 
     def __repr__(self):
         return self.__class__.__name__
+
+@torch.no_grad()
+def sample_mask(mask, max_points=None):
+    assert max_points != None
+    _, X, Y, Z = mask.shape
+    mask = mask.view(X * Y * Z)
+    indice = torch.nonzero(mask).squeeze(1) # [N]
+    if indice.shape[0] > max_points:
+        choices = np.random.choice(indice.shape[0], max_points, replace=False)
+        indice = indice[choices]
+    new_mask = torch.zeros_like(mask) 
+    new_mask[indice] = 1 
+    new_mask = new_mask.view(1, X, Y, Z)
+    return new_mask

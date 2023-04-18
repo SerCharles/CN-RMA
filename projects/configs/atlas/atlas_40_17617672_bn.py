@@ -9,13 +9,13 @@ PIXEL_STD = [1.0, 1.0, 1.0]
 VOXEL_SIZE = 0.04
 VOXEL_SIZE_FCAF3D = 0.01
 N_SCALES = 3
-VOXEL_DIM_TRAIN = [144, 144, 48]
-VOXEL_DIM_TEST = [144, 144, 48] 
+VOXEL_DIM_TRAIN = [176, 176, 72]
+VOXEL_DIM_TEST = [256, 256, 96]
 NUM_FRAMES_TRAIN = 40
-NUM_FRAMES_TEST = 40
+NUM_FRAMES_TEST = 500
 USE_BATCHNORM_TRAIN = True
-USE_BATCHNORM_TEST = True 
-USE_TSDF = False
+USE_BATCHNORM_TEST = False
+USE_TSDF = True
 LOSS_WEIGHT_RECON = 0.5
 LOSS_WEIGHT_DETECTION = 1.0
 fp16 = dict(loss_scale=512.)
@@ -27,7 +27,7 @@ lr_config = dict(policy='step', warmup=None, step=[80, 110])
 
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = '/data/shenguanlin/work_dirs_atlas/atlas_40_14414448_bn_notsdf'
+work_dir = '/data/shenguanlin/work_dirs_atlas/atlas_40_17617672_bn'
 save_path = work_dir + '/results'
 load_from = '/data/shenguanlin/work_dirs_atlas/atlas_mine/switch.pth'
 resume_from = None
@@ -57,7 +57,7 @@ test_pipeline = [
     dict(type='AtlasResizeImage', size=((640, 480))),
     dict(type='AtlasToTensor'),
     dict(type='AtlasTransformSpaceDetection', voxel_dim=VOXEL_DIM_TEST, 
-         origin=[0, 0, 0], test=True, mode='middle'),    
+         origin=[0, 0, 0], test=True, mode='origin'),    
     dict(type='AtlasIntrinsicsPoseToProjection'),
     dict(type='AtlasCollectData')
 ]
@@ -76,7 +76,7 @@ data = dict(
         test_mode=False,
         num_frames=NUM_FRAMES_TRAIN,
         voxel_size=VOXEL_SIZE,
-        select_type='unit'),
+        select_type='random'),
     val=dict(
         type='AtlasScanNetDataset',
         data_root='./data/scannet',
@@ -96,7 +96,7 @@ data = dict(
         test_mode=True,
         num_frames=NUM_FRAMES_TEST,
         voxel_size=VOXEL_SIZE,
-        select_type='unit')
+        select_type='random')
 )
 
 
@@ -188,14 +188,14 @@ model = dict(
             iou_thr=.5,
             score_thr=.01)),
     feature_transform_train=dict(
-        n_points=1000000,
+        n_points=500000,
         flip_ratio_horizontal=0.5,
         flip_ratio_vertical=0.5,
         rot_range=[-0.087266, 0.087266],
         scale_ratio_range=[.9, 1.1],
         translation_std=[.1, .1, .1]),
     feature_transform_test=dict(
-        n_points=1000000,
+        n_points=500000,
         flip_ratio_horizontal=0.0,
         flip_ratio_vertical=0.0,
         rot_range=[-0.00, 0.00],
