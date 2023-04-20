@@ -29,13 +29,15 @@ dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = '/data/shenguanlin/work_dirs_atlas/test_augment'
 save_path = work_dir + '/results'
-load_from = '/data/shenguanlin/work_dirs_atlas/atlas_mine/switch.pth'
-resume_from = None
+#load_from = '/data/shenguanlin/work_dirs_atlas/atlas_mine/switch.pth'
+#resume_from = None
+load_from=None
+resume_from = '/data/shenguanlin/work_dirs_atlas/test_augment/epoch_10.pth'
 workflow = [('train', 1)]
 total_epochs = 120
 evaluation = dict(interval=3000, voxel_size=VOXEL_SIZE, save_path=work_dir+'/results')
 runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
-checkpoint_config = dict(interval=10)
+checkpoint_config = dict(interval=1, max_keep_ckpts=10)
 log_config = dict(
     interval=10,
     hooks=[
@@ -64,7 +66,7 @@ test_pipeline = [
 
 data = dict(
     samples_per_gpu=1,
-    workers_per_gpu=3, 
+    workers_per_gpu=1, 
     train_dataloader=dict(shuffle=True),
     test_dataloader=dict(shuffle=False),
     train=dict(
@@ -187,10 +189,10 @@ model = dict(
             nms_pre=1000,
             iou_thr=.5,
             score_thr=.01)),
-    feature_transform=dict(
-        flip_ratio_horizontal=0.5,
-        flip_ratio_vertical=0.5,
-        rot_range=[-0.087266, 0.087266],
-        scale_ratio_range=[.9, 1.1],
-        translation_std=[.1, .1, .1]),
-    max_points=500000)
+        feature_transform=dict(
+            flip_ratio_horizontal=0.5,
+            flip_ratio_vertical=0.5,
+            rot_range=[-0.087266, 0.087266],
+            scale_ratio_range=[.9, 1.1],
+            translation_std=[.1, .1, .1]),
+        max_points=500000)

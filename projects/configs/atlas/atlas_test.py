@@ -9,10 +9,10 @@ PIXEL_STD = [1.0, 1.0, 1.0]
 VOXEL_SIZE = 0.04
 VOXEL_SIZE_FCAF3D = 0.01
 N_SCALES = 3
-VOXEL_DIM_TRAIN = [224, 224, 96]
-VOXEL_DIM_TEST = [224, 224, 96]
-NUM_FRAMES_TRAIN = 20
-NUM_FRAMES_TEST = 20
+VOXEL_DIM_TRAIN = [160, 160, 64]
+VOXEL_DIM_TEST = [160, 160, 64]
+NUM_FRAMES_TRAIN = 30
+NUM_FRAMES_TEST = 30
 USE_BATCHNORM = True
 USE_TSDF = True
 LOSS_WEIGHT_RECON = 0.5
@@ -26,7 +26,7 @@ lr_config = dict(policy='step', warmup=None, step=[80, 110])
 
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = '/data/shenguanlin/work_dirs_atlas/atlas_test'
+work_dir = '/data1/shenguanlin/middle_30_16016064'
 save_path = work_dir + '/results'
 load_from = '/data/shenguanlin/work_dirs_atlas/atlas_mine/switch.pth'
 resume_from = None
@@ -89,7 +89,7 @@ data = dict(
     test=dict(
         type='AtlasScanNetDataset',
         data_root='./data/scannet',
-        ann_file='./data/scannet/scannet_infos_val.pkl',
+        ann_file='./data/scannet/scannet_infos_train.pkl',
         classes=class_names, 
         pipeline=test_pipeline, 
         test_mode=True,

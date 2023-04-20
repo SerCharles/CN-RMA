@@ -260,12 +260,13 @@ class AtlasTransformSpaceDetection(object):
 def sample_mask(mask, max_points=None):
     assert max_points != None
     _, X, Y, Z = mask.shape
-    mask = mask.view(X * Y * Z)
-    indice = torch.nonzero(mask).squeeze(1) # [N]
+    device = mask.device
+    mask = mask.view(X * Y * Z).detach().cpu().numpy()
+    indice = np.nonzero(mask)[0]
     if indice.shape[0] > max_points:
         choices = np.random.choice(indice.shape[0], max_points, replace=False)
         indice = indice[choices]
-    new_mask = torch.zeros_like(mask) 
+    new_mask = np.zeros_like(mask) 
     new_mask[indice] = 1 
-    new_mask = new_mask.view(1, X, Y, Z)
+    new_mask = torch.tensor(new_mask).view(1, X, Y, Z).to(device)
     return new_mask

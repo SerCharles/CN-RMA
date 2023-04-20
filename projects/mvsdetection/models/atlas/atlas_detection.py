@@ -101,7 +101,11 @@ class AtlasDetection(nn.Module):
         self.tsdf_head = build_head(tsdf_head)
         self.detection_backbone = build_backbone(detection_backbone)
         self.detection_head = build_head(detection_head)
-        self.feature_transform = TransformFeaturesBBoxes(**feature_transform)
+        
+        if feature_transform != None:
+            self.feature_transform = TransformFeaturesBBoxes(**feature_transform)
+        else:
+            self.feature_transform = None
 
         # other hparams
         self.pixel_mean = torch.Tensor(pixel_mean).view(-1, 1, 1)
@@ -126,6 +130,9 @@ class AtlasDetection(nn.Module):
         self.origin = torch.tensor(origin).view(1,3)
         self.backbone2d_stride = backbone2d_stride
         self.initialize_volume()
+        
+        
+        self.iii = 0
         
 
     def initialize_volume(self):
@@ -215,7 +222,7 @@ class AtlasDetection(nn.Module):
     
     
     def fcaf3d_detection(self, inputs, tsdf, test=False):   
-        sparse_features = self.switch_to_sparse(inputs, tsdf, test)
+        sparse_features, inputs['gt_bboxes_3d'] = self.switch_to_sparse(self.volume, self.valid, inputs['gt_bboxes_3d'], inputs['offset'], tsdf, test)
         
         '''
         import open3d as o3d
@@ -246,8 +253,8 @@ class AtlasDetection(nn.Module):
             self.detection_head.get_bboxes(centernesses, bbox_preds, cls_scores, points, inputs['scene'], self.save_path)
         return losses
         
-
-    def switch_to_sparse(self, inputs, tsdf, test):
+    #@torch.no_grad()
+    def switch_to_sparse(self, feature, valid, gt_bboxes, offsets, tsdf, test):
         '''
         Switch the volume to sparse mode, including data augmentation
         
@@ -260,49 +267,70 @@ class AtlasDetection(nn.Module):
             sparse_features [list of torch float32 array], [N * C]: [the list of sparse feature, N is the number of valid points]
         '''
         #get coords
-        B, C, X, Y, Z = self.volume.shape 
-        x_coord, y_coord, z_coord = torch.meshgrid(torch.arange(X), torch.arange(Y), torch.arange(Z))  #X * Y * Z
+        B, C, X, Y, Z = feature.shape 
+        device = feature.device
+        x_coord, y_coord, z_coord = torch.meshgrid(
+            torch.arange(X, device=device), 
+            torch.arange(Y, device=device), 
+            torch.arange(Z, device=device))  #X * Y * Z
         x_coord = x_coord.view(1, 1, X, Y, Z).repeat(B, 1, 1, 1, 1)
         y_coord = y_coord.view(1, 1, X, Y, Z).repeat(B, 1, 1, 1, 1)
         z_coord = z_coord.view(1, 1, X, Y, Z).repeat(B, 1, 1, 1, 1)
         coords = torch.concat((x_coord, y_coord, z_coord), dim=1).float() #B * 3 * X * Y * Z
-        coords = coords.permute(0, 2, 3, 4, 1).view(B, X * Y * Z, 3).to(self.volume.device)
+        coords = coords.permute(0, 2, 3, 4, 1).view(B, X * Y * Z, 3)
         for i in range(B):
-            coords[i] = coords[i] * self.voxel_size + inputs['offset'][i]
+            coords[i] = coords[i] * self.voxel_size + offsets[i]
+        feature = feature.permute(0, 2, 3, 4, 1).view(B, X * Y * Z, C)
         #coords: B * (X * Y * Z) * 3
+        #feature:B * (X * Y * Z) * C
         
-        #data augmentation 
-        if not test:
-            if self.feature_transform != None:
-                for i in range(B):
-                    coords[i], inputs['gt_bboxes_3d'][i] = self.feature_transform(coords[i], inputs['gt_bboxes_3d'][i])
-        
+
         #mask and selection
         if self.use_tsdf:
-            mask = (tsdf < 0.999) & (tsdf > -0.999) & self.valid
+            mask = (tsdf < 0.999) & (tsdf > -0.999) & valid
         else:
-            mask = self.valid
+            mask = valid
+        
         if self.max_points != None:
             masks = []
             for i in range(B):
                 masks.append(sample_mask(mask[i], self.max_points))
             mask = torch.stack(masks, dim=0)
-            
-        #select features
-        feature = self.volume.permute(0, 2, 3, 4, 1).view(B, X * Y * Z, C)
-        concated_feature = torch.cat((coords, feature), dim=2) #B * (X * Y * Z) * (3 + C)
+        
         mask = mask.view(B, X * Y * Z)
+
+        #selected coords
+        selected_coords = []
+        new_gt_bboxes = []
+        for b in range(B):
+            selected_coords_batch = []
+            for i in range(3):
+                selected_coord = torch.masked_select(coords[b, :, i], mask[b])
+                selected_coords_batch.append(selected_coord)
+            selected_coords_batch = torch.stack(selected_coords_batch, dim=1).float()
+            if self.feature_transform != None and (not test):
+                selected_coords_batch, gt_bbox = self.feature_transform(selected_coords_batch, gt_bboxes[b])
+            else:
+                gt_bbox = gt_bboxes[b]
+            selected_coords.append(selected_coords_batch)
+            new_gt_bboxes.append(gt_bbox)
+        
         
         selected_features = []
         for b in range(B):
             selected_features_batch = []
-            for i in range(C + 3):
-                selected_feature = torch.masked_select(concated_feature[b, :, i], mask[b]) 
+            for i in range(C):
+                selected_feature = torch.masked_select(feature[b, :, i], mask[b]) 
                 selected_features_batch.append(selected_feature)
             selected_features_batch = torch.stack(selected_features_batch, dim=1).float()
             selected_features.append(selected_features_batch)
-                        
-        return selected_features
+
+        concated_features = []
+        for b in range(B):
+            concated_feature = torch.cat((selected_coords[b], selected_features[b]), dim=1)
+            concated_features.append(concated_feature)
+          
+        return concated_features, new_gt_bboxes
         
     def forward_train(self, inputs):
         self.voxel_dim = self.voxel_dim_train
@@ -351,10 +379,14 @@ class AtlasDetection(nn.Module):
             kebab.export(os.path.join(self.save_path, scene_id, scene_id + '_gt.ply'))
             vertices = torch.tensor(kebab.vertices).to(image.device).float()
         '''
-
-        
+        '''
+        self.iii += 1 
+        if self.iii >= 190:
+            kebab=0
         #self.test_transform_valid(inputs)
-       
+        if self.iii >= 273:
+            kebab=0 
+        print(self.iii)'''
         return losses
     
 

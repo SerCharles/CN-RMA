@@ -417,7 +417,7 @@ class AtlasTest(nn.Module):
         '''
         import open3d as o3d
         save_path_tsdf = '/data1/shenguanlin/atlas_tsdf_data'
-        save_path_middle = '/data1/shenguanlin/atlas_middle_data_22422496'
+        save_path_middle = '/data1/shenguanlin/atlas_middle_data_30_16016064'
         save_path_last = '/data1/shenguanlin/atlas_last_data'
         visualize_path_sift = '/data1/shenguanlin/tsdf_sift_visualize'
         
