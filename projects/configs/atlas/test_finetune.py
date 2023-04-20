@@ -11,7 +11,7 @@ VOXEL_SIZE_FCAF3D = 0.01
 N_SCALES = 3
 VOXEL_DIM_TRAIN = [160, 160, 64]
 VOXEL_DIM_TEST = [256, 256, 96]
-NUM_FRAMES_TRAIN = 40
+NUM_FRAMES_TRAIN = 30
 NUM_FRAMES_TEST = 500
 USE_BATCHNORM_TRAIN = True
 USE_BATCHNORM_TEST = False
@@ -27,9 +27,9 @@ lr_config = dict(policy='step', warmup=None, step=[80, 110])
 
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = '/data/shenguanlin/work_dirs_atlas/test_augment'
+work_dir = '/data/shenguanlin/work_dirs_atlas/test_finetune'
 save_path = work_dir + '/results'
-load_from = '/data/shenguanlin/work_dirs_atlas/atlas_mine/switch.pth'
+load_from = '/data/shenguanlin/work_dirs_atlas/atlas_test/pipeline_link.pth'
 resume_from = None
 #load_from=None
 #resume_from = '/data/shenguanlin/work_dirs_atlas/test_augment/epoch_12.pth'
@@ -189,10 +189,5 @@ model = dict(
             nms_pre=1000,
             iou_thr=.5,
             score_thr=.01)),
-        feature_transform=dict(
-            flip_ratio_horizontal=0.5,
-            flip_ratio_vertical=0.5,
-            rot_range=[-0.087266, 0.087266],
-            scale_ratio_range=[.9, 1.1],
-            translation_std=[.1, .1, .1]),
-        max_points=500000)
+        feature_transform=None,
+        max_points=None)

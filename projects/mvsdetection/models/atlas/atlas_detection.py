@@ -130,10 +130,7 @@ class AtlasDetection(nn.Module):
         self.origin = torch.tensor(origin).view(1,3)
         self.backbone2d_stride = backbone2d_stride
         self.initialize_volume()
-        
-        
-        self.iii = 0
-        
+                
 
     def initialize_volume(self):
         """ Reset the accumulators.
@@ -222,11 +219,12 @@ class AtlasDetection(nn.Module):
     
     
     def fcaf3d_detection(self, inputs, tsdf, test=False):   
-        sparse_features, inputs['gt_bboxes_3d'] = self.switch_to_sparse(self.volume, self.valid, inputs['gt_bboxes_3d'], inputs['offset'], tsdf, test)
+        
+        sparse_coords, sparse_features, inputs['gt_bboxes_3d'] = self.switch_to_sparse(self.volume, self.valid, inputs['gt_bboxes_3d'], inputs['offset'], tsdf, test)
         
         '''
         import open3d as o3d
-        vertex = sparse_features[0][:, 0:3].clone().detach().cpu().numpy()
+        vertex = sparse_coords[0].clone().detach().cpu().numpy()
         scene_id = inputs['scene'][0]
         if not os.path.exists(os.path.join(self.save_path, scene_id)):
             os.makedirs(os.path.join(self.save_path, scene_id))
@@ -244,16 +242,15 @@ class AtlasDetection(nn.Module):
         '''
             
         coordinates, features = ME.utils.batch_sparse_collate(
-            [(f[:, :3] / self.voxel_size_fcaf3d, f[:, 3:]) for f in sparse_features], device=sparse_features[0].device)
+            [(sparse_coords[i] / self.voxel_size_fcaf3d, sparse_features[i]) for i in range(len(sparse_features))], device=sparse_features[0].device)
         x = ME.SparseTensor(coordinates=coordinates, features=features)
-        x = self.detection_backbone(x)
-        centernesses, bbox_preds, cls_scores, points = list(self.detection_head(x))
+        x = self.detection_backbone(x)        
+        centernesses, bbox_preds, cls_scores, points = list(self.detection_head(x))        
         losses = self.detection_head.loss(centernesses, bbox_preds, cls_scores, points, inputs['gt_bboxes_3d'], inputs['gt_labels_3d'] )
         if test:
             self.detection_head.get_bboxes(centernesses, bbox_preds, cls_scores, points, inputs['scene'], self.save_path)
         return losses
         
-    #@torch.no_grad()
     def switch_to_sparse(self, feature, valid, gt_bboxes, offsets, tsdf, test):
         '''
         Switch the volume to sparse mode, including data augmentation
@@ -282,12 +279,17 @@ class AtlasDetection(nn.Module):
             coords[i] = coords[i] * self.voxel_size + offsets[i]
         feature = feature.permute(0, 2, 3, 4, 1).view(B, X * Y * Z, C)
         #coords: B * (X * Y * Z) * 3
-        #feature:B * (X * Y * Z) * C
+        #feature: B * (X * Y * Z) * C
         
 
         #mask and selection
+        tsdf_sum = int(((tsdf < 0.999) & (tsdf > -0.999)).sum().detach().cpu().numpy())
         if self.use_tsdf:
-            mask = (tsdf < 0.999) & (tsdf > -0.999) & valid
+            if tsdf_sum > 1000:
+                mask = (tsdf < 0.999) & (tsdf > -0.999) & valid
+            else:
+                mask = valid 
+                print('tsdf:', tsdf_sum)
         else:
             mask = valid
         
@@ -296,7 +298,6 @@ class AtlasDetection(nn.Module):
             for i in range(B):
                 masks.append(sample_mask(mask[i], self.max_points))
             mask = torch.stack(masks, dim=0)
-        
         mask = mask.view(B, X * Y * Z)
 
         #selected coords
@@ -324,18 +325,13 @@ class AtlasDetection(nn.Module):
                 selected_features_batch.append(selected_feature)
             selected_features_batch = torch.stack(selected_features_batch, dim=1).float()
             selected_features.append(selected_features_batch)
-
-        concated_features = []
-        for b in range(B):
-            concated_feature = torch.cat((selected_coords[b], selected_features[b]), dim=1)
-            concated_features.append(concated_feature)
           
-        return concated_features, new_gt_bboxes
+        return selected_coords, selected_features, new_gt_bboxes
         
     def forward_train(self, inputs):
         self.voxel_dim = self.voxel_dim_train
         self.initialize_volume()
-        
+
         image = inputs['imgs']
         projection = inputs['projection']
         images = image.transpose(0,1)
@@ -355,16 +351,7 @@ class AtlasDetection(nn.Module):
         
         # run 3d cnn
         recon_result, recon_loss = self.atlas_reconstruction(inputs['tsdf_list'])
-        detection_loss = self.fcaf3d_detection(inputs, recon_result['scene_tsdf_004'], test=False)        
-        
-        #get loss 
-        losses = {}
-        for key in recon_loss.keys():
-            losses[key] = recon_loss[key] * self.loss_weight_recon
-        for key in detection_loss.keys():
-            losses[key] = detection_loss[key] * self.loss_weight_detection
-        
-        
+
         '''
         results = self.post_process(recon_result, inputs)
         for result in results:
@@ -379,14 +366,17 @@ class AtlasDetection(nn.Module):
             kebab.export(os.path.join(self.save_path, scene_id, scene_id + '_gt.ply'))
             vertices = torch.tensor(kebab.vertices).to(image.device).float()
         '''
-        '''
-        self.iii += 1 
-        if self.iii >= 190:
-            kebab=0
-        #self.test_transform_valid(inputs)
-        if self.iii >= 273:
-            kebab=0 
-        print(self.iii)'''
+
+        
+        detection_loss = self.fcaf3d_detection(inputs, recon_result['scene_tsdf_004'], test=False)        
+                
+        #get loss 
+        losses = {}
+        for key in recon_loss.keys():
+            losses[key] = recon_loss[key] * self.loss_weight_recon
+        for key in detection_loss.keys():
+            losses[key] = detection_loss[key] * self.loss_weight_detection
+
         return losses
     
 
