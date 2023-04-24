@@ -29,15 +29,15 @@ dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = '/data/shenguanlin/work_dirs_atlas/test_finetune'
 save_path = work_dir + '/results'
-load_from = '/data/shenguanlin/work_dirs_atlas/atlas_test/pipeline_link.pth'
-resume_from = None
-#load_from=None
-#resume_from = '/data/shenguanlin/work_dirs_atlas/test_augment/epoch_12.pth'
+#load_from = '/data/shenguanlin/work_dirs_atlas/atlas_test/pipeline_link.pth'
+#resume_from = None
+load_from=None
+resume_from = '/data/shenguanlin/work_dirs_atlas/test_finetune/epoch_90.pth'
 workflow = [('train', 1)]
 total_epochs = 120
 evaluation = dict(interval=3000, voxel_size=VOXEL_SIZE, save_path=work_dir+'/results')
 runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
-checkpoint_config = dict(interval=1, max_keep_ckpts=10)
+checkpoint_config = dict(interval=10, max_keep_ckpts=10)
 log_config = dict(
     interval=10,
     hooks=[

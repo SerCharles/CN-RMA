@@ -29,10 +29,10 @@ dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = '/data/shenguanlin/work_dirs_atlas/test_augment'
 save_path = work_dir + '/results'
-load_from = '/data/shenguanlin/work_dirs_atlas/atlas_mine/switch.pth'
-resume_from = None
-#load_from=None
-#resume_from = '/data/shenguanlin/work_dirs_atlas/test_augment/epoch_12.pth'
+#load_from = '/data/shenguanlin/work_dirs_atlas/atlas_mine/switch.pth'
+#resume_from = None
+load_from=None
+resume_from = '/data/shenguanlin/work_dirs_atlas/test_augment/epoch_11.pth'
 workflow = [('train', 1)]
 total_epochs = 120
 evaluation = dict(interval=3000, voxel_size=VOXEL_SIZE, save_path=work_dir+'/results')
