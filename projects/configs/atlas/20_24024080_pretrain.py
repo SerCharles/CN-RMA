@@ -9,16 +9,16 @@ PIXEL_STD = [1.0, 1.0, 1.0]
 VOXEL_SIZE = 0.04
 VOXEL_SIZE_FCAF3D = 0.01
 N_SCALES = 3
-VOXEL_DIM_TRAIN = [160, 160, 64]
+VOXEL_DIM_TRAIN = [240, 240, 80]
 VOXEL_DIM_TEST = [256, 256, 96]
-NUM_FRAMES_TRAIN = 30
+NUM_FRAMES_TRAIN = 20
 NUM_FRAMES_TEST = 500
 USE_BATCHNORM_TRAIN = True
 USE_BATCHNORM_TEST = False
 USE_TSDF = True
 LOSS_WEIGHT_RECON = 0.5
 LOSS_WEIGHT_DETECTION = 1.0
-fp16 = dict(loss_scale=512.)
+#fp16 = dict(loss_scale=512.)
 
 
 optimizer = dict(type='AdamW', lr=0.001, weight_decay=0.0001)
@@ -27,9 +27,9 @@ lr_config = dict(policy='step', warmup=None, step=[80, 110])
 
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = '/data/shenguanlin/work_dirs_atlas/test_no_augment'
+work_dir = '/home/sgl/work_dirs_atlas/20_24024080_pretrain'
 save_path = work_dir + '/results'
-load_from = '/data/shenguanlin/work_dirs_atlas/atlas_mine/switch.pth'
+load_from = '/home/sgl/work_dirs_atlas/pipeline_link.pth'
 resume_from = None
 workflow = [('train', 1)]
 total_epochs = 120
@@ -136,7 +136,7 @@ model = dict(
         out_channels=256,
         norm='BN',
         fuse_type='sum',
-        pretrained='/data/shenguanlin/work_dirs_atlas/atlas_mine/R-50.pth'
+        pretrained='/home/sgl/work_dirs_atlas/R-50.pth'
     ),
     feature_2d=dict(
         type='AtlasFPNFeature',
@@ -187,5 +187,10 @@ model = dict(
             nms_pre=1000,
             iou_thr=.5,
             score_thr=.01)),
-        feature_transform=None,
-        max_points=None)
+        feature_transform=dict(
+            flip_ratio_horizontal=0.5,
+            flip_ratio_vertical=0.5,
+            rot_range=[-0.087266, 0.087266],
+            scale_ratio_range=[.9, 1.1],
+            translation_std=[.1, .1, .1]),
+        max_points=500000)

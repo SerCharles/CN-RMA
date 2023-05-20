@@ -9,7 +9,7 @@ PIXEL_STD = [1.0, 1.0, 1.0]
 VOXEL_SIZE = 0.04
 VOXEL_SIZE_FCAF3D = 0.01
 N_SCALES = 3
-VOXEL_DIM_TRAIN = [200, 200, 80]
+VOXEL_DIM_TRAIN = [216, 216, 80]
 VOXEL_DIM_TEST = [256, 256, 96]
 NUM_FRAMES_TRAIN = 30
 NUM_FRAMES_TEST = 500
@@ -18,7 +18,7 @@ USE_BATCHNORM_TEST = False
 USE_TSDF = True
 LOSS_WEIGHT_RECON = 0.5
 LOSS_WEIGHT_DETECTION = 1.0
-fp16 = dict(loss_scale=512.)
+#fp16 = dict(loss_scale=512.)
 
 
 optimizer = dict(type='AdamW', lr=0.001, weight_decay=0.0001)
@@ -27,15 +27,15 @@ lr_config = dict(policy='step', warmup=None, step=[80, 110])
 
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = '/data/shenguanlin/work_dirs_atlas/atlas_30_20020080_bn'
+work_dir = '/home/sgl/work_dirs_atlas/30_21621680_pretrain'
 save_path = work_dir + '/results'
-load_from = '/data/shenguanlin/work_dirs_atlas/atlas_mine/switch.pth'
-resume_from = '/data/shenguanlin/work_dirs_atlas/atlas_30_20020080_bn/epoch_90.pth'
+load_from = '/home/sgl/work_dirs_atlas/pipeline_link.pth'
+resume_from = None
 workflow = [('train', 1)]
 total_epochs = 120
 evaluation = dict(interval=3000, voxel_size=VOXEL_SIZE, save_path=work_dir+'/results')
 runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
-checkpoint_config = dict(interval=10)
+checkpoint_config = dict(interval=1, max_keep_ckpts=10)
 log_config = dict(
     interval=10,
     hooks=[
@@ -64,7 +64,7 @@ test_pipeline = [
 
 data = dict(
     samples_per_gpu=1,
-    workers_per_gpu=3, 
+    workers_per_gpu=1, 
     train_dataloader=dict(shuffle=True),
     test_dataloader=dict(shuffle=False),
     train=dict(
@@ -136,7 +136,7 @@ model = dict(
         out_channels=256,
         norm='BN',
         fuse_type='sum',
-        pretrained='/data/shenguanlin/work_dirs_atlas/atlas_mine/R-50.pth'
+        pretrained='/home/sgl/work_dirs_atlas/R-50.pth'
     ),
     feature_2d=dict(
         type='AtlasFPNFeature',
@@ -187,17 +187,10 @@ model = dict(
             nms_pre=1000,
             iou_thr=.5,
             score_thr=.01)),
-    feature_transform_train=dict(
-        n_points=500000,
-        flip_ratio_horizontal=0.5,
-        flip_ratio_vertical=0.5,
-        rot_range=[-0.087266, 0.087266],
-        scale_ratio_range=[.9, 1.1],
-        translation_std=[.1, .1, .1]),
-    feature_transform_test=dict(
-        n_points=500000,
-        flip_ratio_horizontal=0.0,
-        flip_ratio_vertical=0.0,
-        rot_range=[-0.00, 0.00],
-        scale_ratio_range=[1.0, 1.0],
-        translation_std=[.0, .0, .0]))
+        feature_transform=dict(
+            flip_ratio_horizontal=0.5,
+            flip_ratio_vertical=0.5,
+            rot_range=[-0.087266, 0.087266],
+            scale_ratio_range=[.9, 1.1],
+            translation_std=[.1, .1, .1]),
+        max_points=500000)
