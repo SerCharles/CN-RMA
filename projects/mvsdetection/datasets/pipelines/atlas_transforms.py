@@ -21,6 +21,7 @@ from PIL import Image, ImageOps
 import numpy as np
 import torch
 import mmcv 
+import cv2
 from mmdet.datasets.builder import PIPELINES
 from mmcv.parallel import DataContainer as DC
 from projects.mvsdetection.datasets.tsdf import TSDF
@@ -32,7 +33,7 @@ from projects.mvsdetection.datasets.tsdf import TSDF
 @PIPELINES.register_module()
 class AtlasToTensor(object):
     def __call__(self, data):
-        data['imgs'] = torch.Tensor(np.stack(data['imgs']).transpose([0, 3, 1, 2])) #N * C * H * w
+        data['imgs'] = torch.Tensor(np.stack(data['imgs']).transpose([0, 3, 1, 2])) #N * C * H * W 
         data['intrinsics'] = torch.Tensor(np.stack(data['intrinsics'])) #N * 3 * 3
         data['extrinsics'] = torch.Tensor(np.stack(data['extrinsics'])) #N * 4 * 4
         if 'ann_info' in data.keys():
@@ -40,6 +41,9 @@ class AtlasToTensor(object):
             data['gt_labels_3d'] = torch.Tensor(data['ann_info']['gt_labels_3d']).long()
             data['axis_align_matrix'] = torch.Tensor(data['ann_info']['axis_align_matrix'])
             data.pop('ann_info')
+        if 'depths' in data.keys(): 
+            data['depths'] = torch.Tensor(np.stack(data['depths']))
+
         return data
 
 @PIPELINES.register_module()
@@ -50,6 +54,9 @@ class AtlasCollectData(object):
         result['projection'] = DC(data['projection'])
         result['tsdf_dict'] = DC(data['tsdf_dict'], cpu_only=True)
         result['scene'] = DC(data['scene'], cpu_only=True)
+        if 'depths' in data.keys():
+            result['depths'] = DC(data['depths'])
+        
         if 'offset' in data.keys():
             result['offset'] = DC(data['offset'])
         if 'gt_bboxes_3d' in data.keys():
@@ -89,9 +96,15 @@ class AtlasResizeImage(object):
             im = im.resize(self.size, Image.BILINEAR)
             intrinsics[0, :] /= (w / self.size[0])
             intrinsics[1, :] /= (h / self.size[1])
-
             data['imgs'][i] = np.array(im, dtype=np.float32)
             data['intrinsics'][i] = intrinsics
+            
+            #暴力把depth缩放为1/4，方便和特征提取后的feature map对应
+            if 'depths' in data.keys():
+                new_size = (self.size[0] // 4, self.size[1] // 4)
+                depth = data['depths'][i]
+                depth = cv2.resize(depth, new_size, interpolation=cv2.INTER_NEAREST)
+                data['depths'][i] = np.array(depth, dtype=np.float32)
 
         return data
 

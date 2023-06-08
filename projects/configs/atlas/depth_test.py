@@ -9,9 +9,9 @@ PIXEL_STD = [1.0, 1.0, 1.0]
 VOXEL_SIZE = 0.04
 VOXEL_SIZE_FCAF3D = 0.01
 N_SCALES = 3
-VOXEL_DIM_TRAIN = [160, 160, 72]
+VOXEL_DIM_TRAIN = [192, 192, 80]
 VOXEL_DIM_TEST = [256, 256, 96]
-NUM_FRAMES_TRAIN = 50
+NUM_FRAMES_TRAIN = 40
 NUM_FRAMES_TEST = 500
 USE_BATCHNORM_TRAIN = True
 USE_BATCHNORM_TEST = False
@@ -27,17 +27,15 @@ lr_config = dict(policy='step', warmup=None, step=[80, 110])
 
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = '/home/sgl/work_dirs_atlas/50_16016072'
+work_dir = '/home/sgl/work_dirs_atlas/depth_test'
 save_path = work_dir + '/results'
-#load_from = '/home/sgl/work_dirs_atlas/switch.pth'
-#resume_from = None
-resume_from='/home/sgl/work_dirs_atlas/50_16016072/epoch_109.pth'
-load_from=None
+load_from = '/home/sgl/work_dirs_atlas/pipeline_link.pth'
+resume_from = None
 workflow = [('train', 1)]
 total_epochs = 120
 evaluation = dict(interval=3000, voxel_size=VOXEL_SIZE, save_path=work_dir+'/results')
 runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
-checkpoint_config = dict(interval=1, max_keep_ckpts=10)
+checkpoint_config = dict(interval=5, max_keep_ckpts=10)
 log_config = dict(
     interval=10,
     hooks=[
@@ -70,7 +68,7 @@ data = dict(
     train_dataloader=dict(shuffle=True),
     test_dataloader=dict(shuffle=False),
     train=dict(
-        type='AtlasScanNetDataset',
+        type='AtlasScanNetDatasetDepth',
         data_root='./data/scannet',
         ann_file='./data/scannet/scannet_infos_train.pkl',
         classes=class_names, 
@@ -80,7 +78,7 @@ data = dict(
         voxel_size=VOXEL_SIZE,
         select_type='random'),
     val=dict(
-        type='AtlasScanNetDataset',
+        type='AtlasScanNetDatasetDepth',
         data_root='./data/scannet',
         ann_file='./data/scannet/scannet_infos_val.pkl',
         classes=class_names, 
@@ -90,7 +88,7 @@ data = dict(
         voxel_size=VOXEL_SIZE,
         select_type='random'),
     test=dict(
-        type='AtlasScanNetDataset',
+        type='AtlasScanNetDatasetDepth',
         data_root='./data/scannet',
         ann_file='./data/scannet/scannet_infos_val.pkl',
         classes=class_names, 
@@ -103,7 +101,7 @@ data = dict(
 
 
 model = dict(
-    type='AtlasDetection',
+    type='AtlasGTDepth',
     pixel_mean=PIXEL_MEAN,
     pixel_std=PIXEL_STD,
     voxel_size=VOXEL_SIZE,

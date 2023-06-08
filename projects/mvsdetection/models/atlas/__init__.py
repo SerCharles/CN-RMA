@@ -8,4 +8,7 @@ from .fcaf3d_backbone import FCAF3DBackbone
 from .fcaf3d_head import FCAF3DHead, FCAF3DAssigner
 from .atlas_detection import AtlasDetection
 from .atlas_test import AtlasTest
-__all__ = ['AtlasTSDFHead', 'Atlas', 'AtlasTest', 'AtlasFPNFeature', 'AtlasBackbone3D', 'FPNDetectron', 'ResNetDetectron', 'AtlasDetection', 'FCAF3DBackbone', 'FCAF3DHead', 'FCAF3DAssigner']
+from .atlas_gt_depth import AtlasGTDepth
+__all__ = ['AtlasTSDFHead', 'Atlas', 'AtlasTest', 'AtlasFPNFeature', 'AtlasBackbone3D', 'FPNDetectron', 'ResNetDetectron', 
+           'AtlasDetection', 'FCAF3DBackbone', 'FCAF3DHead', 'FCAF3DAssigner',
+           'AtlasGTDepth']

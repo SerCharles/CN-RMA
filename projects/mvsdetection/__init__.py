@@ -8,6 +8,7 @@ from .models.neucon.neuralrecon import NeuralRecon
 from .datasets.atlas_dataset import AtlasScanNetDataset
 from .datasets.tsdf import TSDF
 from .datasets.neucon_dataset import NeuconScanNetDataset
+from .datasets.atlas_dataset_depth import AtlasScanNetDatasetDepth
 from .datasets.pipelines import (AtlasResizeImage, 
                                  AtlasIntrinsicsPoseToProjection, 
                                  AtlasRandomTransformSpaceRecon, 
@@ -32,3 +33,4 @@ from .models.atlas.fcaf3d_backbone import FCAF3DBackbone
 from .models.atlas.fcaf3d_head import FCAF3DHead, FCAF3DAssigner
 from .models.atlas.atlas_detection import AtlasDetection
 from .models.atlas.atlas_test import AtlasTest
+from .models.atlas.atlas_gt_depth import AtlasGTDepth

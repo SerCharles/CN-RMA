@@ -33,9 +33,9 @@ lr_config = dict(policy='step', warmup=None, step=[300], gamma=0.1)
 #find_unused_parameters = True
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = '/data/shenguanlin/work_dirs_atlas/atlas_mine'
+work_dir = '/home/sgl/work_dirs_atlas/test'
 save_path = work_dir + '/results'
-load_from = '/data/shenguanlin/work_dirs_atlas/atlas_mine/switch.pth'
+load_from = '/home/sgl/work_dirs_atlas/switch.pth'
 resume_from = None
 workflow = [('train', 1)]
 total_epochs = 200
@@ -135,7 +135,7 @@ model = dict(
         out_channels=256,
         norm='BN',
         fuse_type='sum',
-        pretrained='/data/shenguanlin/work_dirs_atlas/atlas_mine/R-50.pth'
+        pretrained='/home/sgl/work_dirs_atlas/R-50.pth'
     ),
     feature_2d=dict(
         type='AtlasFPNFeature',
