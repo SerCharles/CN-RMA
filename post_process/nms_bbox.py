@@ -78,7 +78,7 @@ def nms_bboxes(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--result_path", type=str, default='/data/shenguanlin/work_dirs_atlas/test_finetune/results')
+    parser.add_argument("--result_path", type=str, default='/home/sgl/work_dirs_atlas/depth_test/results')
     parser.add_argument("--postfix", type=str, default='_atlas_bbox.npz')
     args = parser.parse_args()
     nms_bboxes(args)

@@ -108,12 +108,14 @@ def project_with_depth(voxel_dim, voxel_size, origin, projection, features, dept
     world_coordinate = world_coordinate[:, 0:3, :] #B * 3 * (H * W)
 
     #voxelize the world coordinates 
-    origin_extend = origin.unsqueeze.view(B, 3, 1).repeat(1, 1, H * W) #B * 3 * (H * W)
-    voxel_id = ((world_coordinate - origin_extend) / voxel_size).round().type(torch.long) #B * 3 * (H * W) 
-    mask = (depths > 0).view(B, H * W) & \
-            voxel_id[:, 0, :] >= 0 & voxel_id[:, 0, :] < X & \
-            voxel_id[:, 1, :] >= 0 & voxel_id[:, 1, :] < Y & \
-            voxel_id[:, 2, :] >= 0 & voxel_id[:, 2, :] < Z #B * (H * W)
+    origin_extend = origin.view(B, 3, 1).repeat(1, 1, H * W).to(device) #B * 3 * (H * W)
+    voxel_id = ((world_coordinate - origin_extend) / voxel_size).round().type(torch.long) #B * 3 * (H * W)
+    
+    depth_mask =  (depths > 0).view(B, H * W)
+    x_mask = (voxel_id[:, 0, :] >= 0) & (voxel_id[:, 0, :] < X)
+    y_mask = (voxel_id[:, 1, :] >= 0) & (voxel_id[:, 1, :] < Y)
+    z_mask = (voxel_id[:, 2, :] >= 0) & (voxel_id[:, 2, :] < Z)
+    mask =  depth_mask & x_mask & y_mask & z_mask #B * (H * W)
     
     selected_features = []
     for i in range(B):
@@ -130,14 +132,15 @@ def project_with_depth(voxel_dim, voxel_size, origin, projection, features, dept
         for j in range(3):
             ids = torch.masked_select(voxel_id[i, j, :], mask[i])
             selected_voxel_id_batch.append(ids)
-        selected_voxel_id_batch = torch.stack(selected_voxel_id_batch, dim=0).float() #3 * N
+        selected_voxel_id_batch = torch.stack(selected_voxel_id_batch, dim=0).long()
         selected_voxel_id.append(selected_voxel_id_batch)
         
     volume = torch.zeros(B, C, X, Y, Z, dtype=features.dtype, device=device)
+    valid = torch.zeros(B, 1, X, Y, Z, dtype=features.dtype, device=device)
     for i in range(B):
         if selected_voxel_id[i].shape[1] > 0:
             volume[i, :, selected_voxel_id[i][0, :], selected_voxel_id[i][1, :], selected_voxel_id[i][2, :]] = selected_features[i]
-    valid = volume > 0
+            valid[i, 0, selected_voxel_id[i][0, :], selected_voxel_id[i][1, :], selected_voxel_id[i][2, :]] = 1
     return volume, valid
 
 @DETECTORS.register_module()
@@ -263,13 +266,8 @@ class AtlasGTDepth(nn.Module):
 
 
         #test code
-        coordinates = project_with_depth(self.voxel_dim, self.voxel_size, self.origin, projection, feature, depth)
-        if self.coordinates == None:
-            self.coordinates = coordinates
-        else:
-            self.coordinates = torch.cat((self.coordinates, coordinates), dim=2)
-        
-        volume, valid = backproject(self.voxel_dim, self.voxel_size, self.origin, projection, feature)
+        volume, valid = project_with_depth(self.voxel_dim, self.voxel_size, self.origin, projection, feature, depth)
+        #volume, valid = backproject(self.voxel_dim, self.voxel_size, self.origin, projection, feature)
 
         self.volume = self.volume + volume
         self.valid = self.valid + valid
@@ -319,7 +317,7 @@ class AtlasGTDepth(nn.Module):
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(vertex)
         o3d.io.write_point_cloud(os.path.join(self.save_path, scene_id, scene_id + '_features.ply'), pcd)
-
+        
         for i in range(len(inputs['scene'])):
             gt_bbox = inputs['gt_bboxes_3d'][i].tensor.clone().detach().cpu().numpy()
             gt_bbox[:, 2] = gt_bbox[:, 2] + gt_bbox[:, 5] / 2
@@ -521,7 +519,6 @@ class AtlasGTDepth(nn.Module):
             #kebab = result['kebab'].get_mesh()
             #kebab.export(os.path.join(self.save_path, scene_id, scene_id + '_gt.ply'))
         
-        self.test_project(inputs, self.coordinates)
 
        
         return [{}]
@@ -697,7 +694,7 @@ class AtlasGTDepth(nn.Module):
 
     def test_transform_train(self, inputs, vertex):
         import open3d as o3d
-        sparse_features = self.switch_to_sparse(self.volume, self.valid, inputs['offset'])
+        sparse_features = self.switch_to_sparse(self.volume, self.valid, )
         N = vertex.shape[0]
         extend_vertex = torch.zeros((vertex.shape[0], 32), dtype=torch.float32).to(sparse_features[0].device)
         vertex = torch.cat((vertex[:, 0:3], extend_vertex), dim=1) #N * 35
@@ -739,6 +736,3 @@ class AtlasGTDepth(nn.Module):
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(vertex)
         o3d.io.write_point_cloud(os.path.join(self.save_path, scene_id, scene_id + '_features.ply'), pcd)
-        
-    def test_project(self, inputs, coordinates):
-        

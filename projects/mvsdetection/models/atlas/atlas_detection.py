@@ -219,28 +219,8 @@ class AtlasDetection(nn.Module):
     
     
     def fcaf3d_detection(self, inputs, tsdf, test=False):   
-        
         sparse_coords, sparse_features, inputs['gt_bboxes_3d'] = self.switch_to_sparse(self.volume, self.valid, inputs['gt_bboxes_3d'], inputs['offset'], tsdf, test)
         
-        '''
-        import open3d as o3d
-        vertex = sparse_coords[0].clone().detach().cpu().numpy()
-        scene_id = inputs['scene'][0]
-        if not os.path.exists(os.path.join(self.save_path, scene_id)):
-            os.makedirs(os.path.join(self.save_path, scene_id))
-        pcd = o3d.geometry.PointCloud()
-        pcd.points = o3d.utility.Vector3dVector(vertex)
-        o3d.io.write_point_cloud(os.path.join(self.save_path, scene_id, scene_id + '_features.ply'), pcd)
-
-        for i in range(len(inputs['scene'])):
-            gt_bbox = inputs['gt_bboxes_3d'][i].tensor.clone().detach().cpu().numpy()
-            gt_bbox[:, 2] = gt_bbox[:, 2] + gt_bbox[:, 5] / 2
-            gt_label = inputs['gt_labels_3d'][i].clone().detach().cpu().numpy()
-            gt_score = np.ones_like(gt_label, dtype=np.float32)
-            file_name = os.path.join(self.save_path, scene_id, scene_id + '_gt.npz')
-            np.savez(file_name, boxes=gt_bbox, scores=gt_score, labels=gt_label)
-        '''
-            
         coordinates, features = ME.utils.batch_sparse_collate(
             [(sparse_coords[i] / self.voxel_size_fcaf3d, sparse_features[i]) for i in range(len(sparse_features))], device=sparse_features[0].device)
         x = ME.SparseTensor(coordinates=coordinates, features=features)
