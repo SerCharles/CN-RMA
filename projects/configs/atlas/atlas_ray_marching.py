@@ -15,7 +15,7 @@ NUM_FRAMES_TRAIN = 40
 NUM_FRAMES_TEST = 500
 USE_BATCHNORM_TRAIN = True
 USE_BATCHNORM_TEST = False
-USE_TSDF = False
+USE_TSDF = True
 LOSS_WEIGHT_RECON = 0.5
 LOSS_WEIGHT_DETECTION = 1.0
 #fp16 = dict(loss_scale=512.)
@@ -27,7 +27,7 @@ lr_config = dict(policy='step', warmup=None, step=[80, 110])
 
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = '/home/sgl/work_dirs_atlas/depth_test'
+work_dir = '/home/sgl/work_dirs_atlas/40_19219280_pretrain'
 save_path = work_dir + '/results'
 load_from = '/home/sgl/work_dirs_atlas/pipeline_link.pth'
 resume_from = None
@@ -68,7 +68,7 @@ data = dict(
     train_dataloader=dict(shuffle=True),
     test_dataloader=dict(shuffle=False),
     train=dict(
-        type='AtlasScanNetDatasetDepth',
+        type='AtlasScanNetDataset',
         data_root='./data/scannet',
         ann_file='./data/scannet/scannet_infos_train.pkl',
         classes=class_names, 
@@ -78,7 +78,7 @@ data = dict(
         voxel_size=VOXEL_SIZE,
         select_type='random'),
     val=dict(
-        type='AtlasScanNetDatasetDepth',
+        type='AtlasScanNetDataset',
         data_root='./data/scannet',
         ann_file='./data/scannet/scannet_infos_val.pkl',
         classes=class_names, 
@@ -88,9 +88,9 @@ data = dict(
         voxel_size=VOXEL_SIZE,
         select_type='random'),
     test=dict(
-        type='AtlasScanNetDatasetDepth',
+        type='AtlasScanNetDataset',
         data_root='./data/scannet',
-        ann_file='./data/scannet/scannet_infos_train.pkl',
+        ann_file='./data/scannet/scannet_infos_val.pkl',
         classes=class_names, 
         pipeline=test_pipeline, 
         test_mode=True,
@@ -101,7 +101,7 @@ data = dict(
 
 
 model = dict(
-    type='AtlasGTDepth',
+    type='AtlasRayMarching',
     pixel_mean=PIXEL_MEAN,
     pixel_std=PIXEL_STD,
     voxel_size=VOXEL_SIZE,

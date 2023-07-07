@@ -34,3 +34,4 @@ from .models.atlas.fcaf3d_head import FCAF3DHead, FCAF3DAssigner
 from .models.atlas.atlas_detection import AtlasDetection
 from .models.atlas.atlas_test import AtlasTest
 from .models.atlas.atlas_gt_depth import AtlasGTDepth
+from .models.atlas.atlas_ray_marching import AtlasRayMarching

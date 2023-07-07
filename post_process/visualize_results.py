@@ -260,7 +260,7 @@ def main():
     parser = argparse.ArgumentParser(description="NeuralRecon ScanNet Testing")
     parser.add_argument("--data_path", type=str, default='/data1/sgl/ScanNet')
     #parser.add_argument("--save_path", type=str, default='/home/sgl/work_dirs_atlas/test_finetune/results')
-    parser.add_argument("--save_path", type=str, default='/home/sgl/work_dirs_atlas/depth_test/results')
+    parser.add_argument("--save_path", type=str, default='/data1/sgl/depth_data')
 
     args = parser.parse_args()
     scene_ids = load_scene_ids(args.data_path, 'val')
@@ -279,13 +279,13 @@ def main():
         meta_path = None
         visualize_boxs(mesh_path, meta_path, bbox_path, save_path, type='point')
         
-        
+        '''
         meta_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '.txt')
         mesh_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '_vh_clean_2.ply')
         bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_atlas_bbox.npz')
         save_path = os.path.join(args.save_path, scene_id, scene_id + '_atlas_bbox.ply')
         visualize_boxs(mesh_path, meta_path, bbox_path, save_path, type='mesh')
-        
+        '''
         '''
         gt_path = os.path.join(args.data_path, 'scannet_instance_data', scene_id + '_aligned_bbox.npy')
         gt_bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_gt.npz')

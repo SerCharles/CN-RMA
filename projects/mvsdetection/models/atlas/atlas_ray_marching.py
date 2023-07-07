@@ -1,7 +1,9 @@
 import numpy as np
 import os
+from math import *
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.distributed as dist
 from collections import OrderedDict
 from mmdet.models import DETECTORS 
@@ -11,7 +13,6 @@ from mmdet3d.core import bbox3d2result
 from mmcv.runner import auto_fp16
 from projects.mvsdetection.datasets.tsdf import TSDF, coordinates
 from projects.mvsdetection.datasets.pipelines.fcaf3d_transforms import TransformFeaturesBBoxes, sample_mask
-
 
 def backproject(voxel_dim, voxel_size, origin, projection, features):
     """ Takes 2d features and fills them along rays in a 3d volume
@@ -24,7 +25,7 @@ def backproject(voxel_dim, voxel_size, origin, projection, features):
         voxel_dim: size of voxel volume to construct (nx,ny,nz)
         voxel_size: metric size of each voxel (ex: .04m)
         origin: origin of the voxel volume (xyz position of voxel (0,0,0))
-        projection: bx3*4 projection matrices (intrinsics@extrinsics)
+        projection: bx4x3 projection matrices (intrinsics@extrinsics)
         features: bxcxhxw  2d feature tensor to be backprojected into 3d
 
     Returns:
@@ -33,6 +34,7 @@ def backproject(voxel_dim, voxel_size, origin, projection, features):
                 Each voxel contains a 1 if it projects to a pixel
                 and 0 otherwise (not in view frustrum of the camera)
     """
+
     batch = features.size(0)
     channels = features.size(1)
     device = features.device
@@ -42,7 +44,7 @@ def backproject(voxel_dim, voxel_size, origin, projection, features):
     world = coords.type_as(projection) * voxel_size + origin.to(device).unsqueeze(2)
     world = torch.cat((world, torch.ones_like(world[:,:1]) ), dim=1)
     
-    camera = torch.bmm(projection, world) #projection: b * 3 * 4; world: b * 4 * hwd
+    camera = torch.bmm(projection, world)
     px = (camera[:,0,:]/camera[:,2,:]).round().type(torch.long)
     py = (camera[:,1,:]/camera[:,2,:]).round().type(torch.long)
     pz = camera[:,2,:]
@@ -62,38 +64,30 @@ def backproject(voxel_dim, voxel_size, origin, projection, features):
 
     return volume, valid
 
-
-def project_with_depth(voxel_dim, voxel_size, origin, projection, features, depths):
-    """ Get the 3D coordinates of each pixel with ground truth depth
-
+def get_ray_parameter(projection, features):
+    """Get the ray(O + tD)'s parameters
 
     Args:
-        voxel_dim: size of voxel volume to construct (nx,ny,nz)
-        voxel_size: metric size of each voxel (ex: .04m)
-        origin: origin of the voxel volume (xyz position of voxel (0,0,0))
         projection: bx3x4 projection matrices (intrinsics@extrinsics)
         features: bxcxhxw  2d feature tensor to be backprojected into 3d
-        depths: bxhxw depth map
-
+        
     Returns:
-        volume: b x c x nx x ny x nz 3d feature volume
-        valid:  b x 1 x nx x ny x nz volume.
-                Each voxel contains a 1 if it projects to a pixel
-                and 0 otherwise (not in view frustrum of the camera)
+        o: b x 3 x (H x W), the origin of all the rays
+        d: b x 3 x (H x W), the direction of all the rays, normalized 
     """
     B, C, H, W = features.size()
-    X, Y, Z = voxel_dim
     device = features.device
 
     #2d grid of each pixel
     v, u = torch.meshgrid(torch.arange(0, H), torch.arange(0, W))
     u = u.view(1, 1, H, W).repeat(B, 1, 1, 1).float().to(device) #B * 1 * H * W
     v = v.view(1, 1, H, W).repeat(B, 1, 1, 1).float().to(device) #B * 1 * H * W
-    d = depths.unsqueeze(1) #B * 1 * H * W
-    ones = torch.ones_like(d).float().to(device) #B * 1 * H * W
-    
-    uv_results = torch.cat((u*d, v*d, d, ones), dim=1).view(B, 4, H * W) #B * 4 * (H * W)
-      
+    zero_depth = torch.zeros_like(u).float().to(device) #B * 1 * H * W
+    one_depth = torch.ones_like(u).float().to(device) #B * 1 * H * W
+    ones = torch.ones_like(u).float().to(device) #B * 1 * H * W
+    uv_zeros = torch.cat((u * zero_depth, v * zero_depth, zero_depth, ones), dim=1).view(B, 4, H * W) #B * 4 * (H * W)
+    uv_ones = torch.cat((u * one_depth, v * one_depth, one_depth, ones), dim=1).view(B, 4, H * W) #B * 4 * (H * W)
+          
     #change projection to 4*4, and get its reverse
     ones_projection = torch.tensor([0, 0, 0, 1]).view(1, 1, 4).repeat(B, 1, 1).float().to(device) #B * 1 * 4
     new_projection = torch.cat((projection, ones_projection), dim=1) #B * 4 * 4
@@ -103,48 +97,80 @@ def project_with_depth(voxel_dim, voxel_size, origin, projection, features, dept
         projection_inverse.append(inverse)
     projection_inverse = torch.stack(projection_inverse, dim=0) #B * 4 * 4
     
-    #get world coordinate of each pixel with ground truth depth 
-    world_coordinate = torch.bmm(projection_inverse, uv_results)
-    world_coordinate = world_coordinate[:, 0:3, :] #B * 3 * (H * W)
+    #get the o and d of the ray 
+    o = torch.bmm(projection_inverse, uv_zeros)
+    o = o[:, 0:3, :]
+    d = torch.bmm(projection_inverse, uv_ones)
+    d = d[:, 0:3, :]
+    d = d - o
+    d = F.normalize(d, p=2, dim=1)
+    return o, d
 
-    #voxelize the world coordinates 
+def ray_projection(voxel_dim, voxel_size, origin, projection, features, tsdf, grids=300):
+    """ Get the 3D coordinates of each pixel with tsdf
+    Args:
+        voxel_dim: size of voxel volume to construct (nx,ny,nz)
+        voxel_size: metric size of each voxel (ex: .04m)
+        origin: origin of the voxel volume (xyz position of voxel (0,0,0))
+        projection: bx3x4 projection matrices (intrinsics@extrinsics)
+        features: bxcxhxw  2d feature tensor to be backprojected into 3d
+        tsdf: b x 1 x nx x ny x nz tsdf map
+        grids: the grid samples of each line
+
+    Returns:
+        volume: b x c x nx x ny x nz 3d feature volume
+        valid:  b x 1 x nx x ny x nz volume.
+                Each voxel contains a 1 if it projects to a pixel
+                and 0 otherwise (not in view frustrum of the camera)
+    """
+    
+    X, Y, Z = voxel_dim
+    B, C, H, W = features.size()
+    device = features.device
     origin_extend = origin.view(B, 3, 1).repeat(1, 1, H * W).to(device) #B * 3 * (H * W)
-    voxel_id = ((world_coordinate - origin_extend) / voxel_size).round().type(torch.long) #B * 3 * (H * W)
+    o, d = get_ray_parameter(projection, features) #B * 3 * (H * W)
     
-    depth_mask =  (depths > 0).view(B, H * W)
-    x_mask = (voxel_id[:, 0, :] >= 0) & (voxel_id[:, 0, :] < X)
-    y_mask = (voxel_id[:, 1, :] >= 0) & (voxel_id[:, 1, :] < Y)
-    z_mask = (voxel_id[:, 2, :] >= 0) & (voxel_id[:, 2, :] < Z)
-    mask =  depth_mask & x_mask & y_mask & z_mask #B * (H * W)
-    
-    selected_features = []
-    for i in range(B):
-        selected_features_batch = []
-        for j in range(C):
-            feature = torch.masked_select(features[i, j, :, :].view(H * W), mask[i])
-            selected_features_batch.append(feature)
-        selected_features_batch = torch.stack(selected_features_batch, dim=0).float() #C * N
-        selected_features.append(selected_features_batch)
-    
-    selected_voxel_id = []
-    for i in range(B):
-        selected_voxel_id_batch = []
-        for j in range(3):
-            ids = torch.masked_select(voxel_id[i, j, :], mask[i])
-            selected_voxel_id_batch.append(ids)
-        selected_voxel_id_batch = torch.stack(selected_voxel_id_batch, dim=0).long()
-        selected_voxel_id.append(selected_voxel_id_batch)
+    #get the t
+    t_max = sqrt(X ** 2 + Y ** 2 + Z ** 2) * voxel_size 
+    t_one = t_max / grids
+    t = []
+    for j in range(grids):
+        current_t = t_one * j 
+        current_ts = torch.ones(B, 3, H * W, 1, dtype=torch.float32) * current_t
+        t.append(current_ts)
+    t = torch.concat(t, dim=3).view(B, 3, H * W * grids).to(device) #B * 3 * (H * W * T)
         
-    volume = torch.zeros(B, C, X, Y, Z, dtype=features.dtype, device=device)
-    valid = torch.zeros(B, 1, X, Y, Z, dtype=features.dtype, device=device)
-    for i in range(B):
-        if selected_voxel_id[i].shape[1] > 0:
-            volume[i, :, selected_voxel_id[i][0, :], selected_voxel_id[i][1, :], selected_voxel_id[i][2, :]] = selected_features[i]
-            valid[i, 0, selected_voxel_id[i][0, :], selected_voxel_id[i][1, :], selected_voxel_id[i][2, :]] = 1
-    return volume, valid
+    #get voxel ids
+    d = d.view(B, 3, H * W, 1).repeat(1, 1, 1, grids).view(B, 3, H * W * grids) #B * 3 * (H * W * T)
+    o = o.view(B, 3, H * W, 1).repeat(1, 1, 1, grids).view(B, 3, H * W * grids) #B * 3 * (H * W * T)
+    origin_extend = origin_extend.view(B, 3, H * W, 1).repeat(1, 1, 1, grids).view(B, 3, H * W * grids) #B * 3 * (H * W * T)
+    place = o + d * t
+    voxel_id = ((place - origin_extend) / voxel_size).round().type(torch.long) #B * 3 * (H * W * T)
+    valid = (voxel_id[:, 0, :] >= 0) & (voxel_id[:, 0, :] < X) & \
+            (voxel_id[:, 1, :] >= 0) & (voxel_id[:, 1, :] < Y) & \
+            (voxel_id[:, 2, :] >= 0) & (voxel_id[:, 2, :] < Z) #B * (H * W * T)
+    voxel_id[:, 0, :][valid == 0] = 0
+    voxel_id[:, 1, :][valid == 0] = 0
+    voxel_id[:, 2, :][valid == 0] = 0
+
+    
+    #get tsdf values 
+    tsdf_results = []
+    for b in range(B):
+        tsdf_result = tsdf[b, 0, voxel_id[b, 0, :], voxel_id[b, 1, :], voxel_id[b, 2, :]]
+        tsdf_results.append(tsdf_result)
+    tsdf_results = torch.stack(tsdf_results, dim=0) #B * (H * W * T)
+    tsdf_results[valid == 0] = 1.0 #mask bad tsdf
+    tsdf_results = tsdf_results.view(B, H, W, grids) #B * H * W * T 
+    
+     
+    #可视化方案：把voxel id转化成实际位置，可视化显示出来
+    return o.view(B, 3, H, W, grids), d.view(B, 3, H, W, grids), voxel_id.view(B, 3, H, W, grids), valid.view(B, H, W, grids), tsdf_results 
+    
+
 
 @DETECTORS.register_module()
-class AtlasGTDepth(nn.Module):
+class AtlasRayMarching(nn.Module):
     def __init__(self, 
                  pixel_mean, 
                  pixel_std, 
@@ -172,7 +198,7 @@ class AtlasGTDepth(nn.Module):
                  train_cfg=None, 
                  test_cfg=None, 
                  pretrained=None):
-        super(AtlasGTDepth, self).__init__()
+        super(AtlasRayMarching, self).__init__()
         # networks
         self.fp16_enabled = False
         self.fpn = build_backbone(backbone2d)
@@ -210,9 +236,6 @@ class AtlasGTDepth(nn.Module):
         self.origin = torch.tensor(origin).view(1,3)
         self.backbone2d_stride = backbone2d_stride
         self.initialize_volume()
-        
-        
-        
                 
 
     def initialize_volume(self):
@@ -224,7 +247,9 @@ class AtlasGTDepth(nn.Module):
         """
         self.volume = 0
         self.valid = 0
-        
+        self.volume_detection = 0
+        self.valid_detection = 0
+
     def normalizer(self, x):
         """ Normalizes the RGB images to the input range"""
         return (x - self.pixel_mean.type_as(x)) / self.pixel_std.type_as(x)
@@ -234,7 +259,7 @@ class AtlasGTDepth(nn.Module):
         x = self.feature_2d(x)
         return x
 
-    def aggregate_2d_features(self, projection, image=None, feature=None, depth=None):
+    def aggregate_2d_features(self, projection, image=None, feature=None):
         """ Backprojects image features into 3D and accumulates them.
 
         This is the first half of the network which is run on every frame.
@@ -264,10 +289,7 @@ class AtlasGTDepth(nn.Module):
         projection = projection.clone()
         projection[:,:2,:] = projection[:,:2,:] / self.backbone2d_stride
 
-
-        #test code
-        volume, valid = project_with_depth(self.voxel_dim, self.voxel_size, self.origin, projection, feature, depth)
-        #volume, valid = backproject(self.voxel_dim, self.voxel_size, self.origin, projection, feature)
+        volume, valid = backproject(self.voxel_dim, self.voxel_size, self.origin, projection, feature)
 
         self.volume = self.volume + volume
         self.valid = self.valid + valid
@@ -305,28 +327,8 @@ class AtlasGTDepth(nn.Module):
     
     
     def fcaf3d_detection(self, inputs, tsdf, test=False):   
-        
         sparse_coords, sparse_features, inputs['gt_bboxes_3d'] = self.switch_to_sparse(self.volume, self.valid, inputs['gt_bboxes_3d'], inputs['offset'], tsdf, test)
         
-        '''
-        import open3d as o3d
-        vertex = sparse_coords[0].clone().detach().cpu().numpy()
-        scene_id = inputs['scene'][0]
-        if not os.path.exists(os.path.join(self.save_path, scene_id)):
-            os.makedirs(os.path.join(self.save_path, scene_id))
-        pcd = o3d.geometry.PointCloud()
-        pcd.points = o3d.utility.Vector3dVector(vertex)
-        o3d.io.write_point_cloud(os.path.join(self.save_path, scene_id, scene_id + '_features.ply'), pcd)
-        
-        for i in range(len(inputs['scene'])):
-            gt_bbox = inputs['gt_bboxes_3d'][i].tensor.clone().detach().cpu().numpy()
-            gt_bbox[:, 2] = gt_bbox[:, 2] + gt_bbox[:, 5] / 2
-            gt_label = inputs['gt_labels_3d'][i].clone().detach().cpu().numpy()
-            gt_score = np.ones_like(gt_label, dtype=np.float32)
-            file_name = os.path.join(self.save_path, scene_id, scene_id + '_gt.npz')
-            np.savez(file_name, boxes=gt_bbox, scores=gt_score, labels=gt_label)
-        '''
-            
         coordinates, features = ME.utils.batch_sparse_collate(
             [(sparse_coords[i] / self.voxel_size_fcaf3d, sparse_features[i]) for i in range(len(sparse_features))], device=sparse_features[0].device)
         x = ME.SparseTensor(coordinates=coordinates, features=features)
@@ -369,8 +371,8 @@ class AtlasGTDepth(nn.Module):
         
 
         #mask and selection
+        tsdf_sum = int(((tsdf < 0.999) & (tsdf > -0.999)).sum().detach().cpu().numpy())
         if self.use_tsdf:
-            tsdf_sum = int(((tsdf < 0.999) & (tsdf > -0.999)).sum().detach().cpu().numpy())
             if tsdf_sum > 1000:
                 mask = (tsdf < 0.999) & (tsdf > -0.999) & valid
             else:
@@ -420,41 +422,32 @@ class AtlasGTDepth(nn.Module):
 
         image = inputs['imgs']
         projection = inputs['projection']
-        depths = inputs['depths']
         images = image.transpose(0,1)
         projections = projection.transpose(0,1)
-        depths = depths.transpose(0, 1)
         if self.use_batchnorm_train:
-            image = images.reshape(images.shape[0] * images.shape[1], *images.shape[2:])
+            image = images.reshape(images.shape[0]*images.shape[1], *images.shape[2:])
             image = self.normalizer(image)
             features = self.backbone2d(image)
             features = features.view(images.shape[0], images.shape[1], *features.shape[1:])
-            for projection, feature, depth in zip(projections, features, depths):
-                self.aggregate_2d_features(projection, feature=feature, depth=depth)
+            for projection, feature in zip(projections, features):
+                self.aggregate_2d_features(projection, feature=feature)
             self.clear_3d_features()
         else:
-            for projection, image, depth in zip(projections, images, depths):
-                self.aggregate_2d_features(projection, image=image, depth=depth)
+            for projection, image in zip(projections, images):
+                self.aggregate_2d_features(projection, image=image)
             self.clear_3d_features()
+        
+        
+        
         
         # run 3d cnn
         recon_result, recon_loss = self.atlas_reconstruction(inputs['tsdf_list'])
+        
+        #Ray marching
+        for projection, feature in zip(projections, features):
+            o, d, voxel_id, valid, tsdf_results = ray_projection(self.voxel_dim, self.voxel_size, self.origin, projection, feature, recon_result['scene_tsdf_004'])
 
-        '''
-        results = self.post_process(recon_result, inputs)
-        for result in results:
-            scene_id = result['scene']
-            tsdf_pred = result['scene_tsdf']
-            mesh_pred = tsdf_pred.get_mesh()
-            if not os.path.exists(os.path.join(self.save_path, scene_id)):
-                os.makedirs(os.path.join(self.save_path, scene_id))
-            tsdf_pred.save(os.path.join(self.save_path, scene_id, scene_id + '.npz'))
-            mesh_pred.export(os.path.join(self.save_path, scene_id, scene_id + '.ply'))
-            kebab = result['kebab'].get_mesh()
-            kebab.export(os.path.join(self.save_path, scene_id, scene_id + '_gt.ply'))
-            vertices = torch.tensor(kebab.vertices).to(image.device).float()
-        '''
-
+        
         
         detection_loss = self.fcaf3d_detection(inputs, recon_result['scene_tsdf_004'], test=False)        
                 
@@ -464,7 +457,6 @@ class AtlasGTDepth(nn.Module):
             losses[key] = recon_loss[key] * self.loss_weight_recon
         for key in detection_loss.keys():
             losses[key] = detection_loss[key] * self.loss_weight_detection
-
 
         return losses
     
@@ -477,38 +469,36 @@ class AtlasGTDepth(nn.Module):
 
         image = inputs['imgs']
         projection = inputs['projection']
-        depths = inputs['depths']
-        images = image.transpose(0, 1)
-        projections = projection.transpose(0, 1)
-        depths = depths.transpose(0, 1)
-
+        images = image.transpose(0,1)
+        projections = projection.transpose(0,1)
         if self.use_batchnorm_test:
-            image = images.reshape(images.shape[0] * images.shape[1], *images.shape[2:])
+            image = images.reshape(images.shape[0]*images.shape[1], *images.shape[2:])
             image = self.normalizer(image)
             features = self.backbone2d(image)
             features = features.view(images.shape[0], images.shape[1], *features.shape[1:])
-            for projection, feature, depth in zip(projections, features, depths):
-                self.aggregate_2d_features(projection, feature=feature, depth=depth)
+            for projection, feature in zip(projections, features):
+                self.aggregate_2d_features(projection, feature=feature)
             self.clear_3d_features()
         else:
-            for projection, image, depth in zip(projections, images, depths):
-                self.aggregate_2d_features(projection, image=image, depth=depth)
+            for projection, image in zip(projections, images):
+                self.aggregate_2d_features(projection, image=image)
             self.clear_3d_features()
         
         # run 3d cnn
         recon_result, recon_loss = self.atlas_reconstruction(inputs['tsdf_list'])
-        #detection_loss = self.fcaf3d_detection(inputs, recon_result['scene_tsdf_004'], test=True)
-        self.save_pc(inputs)       
+        
+
+        
+        detection_loss = self.fcaf3d_detection(inputs, recon_result['scene_tsdf_004'], test=True)        
 
         #get loss 
         losses = {}
         for key in recon_loss.keys():
             losses[key] = recon_loss[key] * self.loss_weight_recon
-        #for key in detection_loss.keys():
-        #    losses[key] = detection_loss[key] * self.loss_weight_detection
+        for key in detection_loss.keys():
+            losses[key] = detection_loss[key] * self.loss_weight_detection
         
         print(losses)
-        '''
         recon_results = self.post_process(recon_result, inputs)
         for result in recon_results:
             scene_id = result['scene']
@@ -521,8 +511,7 @@ class AtlasGTDepth(nn.Module):
             #kebab = result['kebab'].get_mesh()
             #kebab.export(os.path.join(self.save_path, scene_id, scene_id + '_gt.ply'))
         
-
-        '''
+       # self.test_transform_valid(inputs)
         return [{}]
 
     def post_process(self, outputs, inputs):
@@ -661,10 +650,6 @@ class AtlasGTDepth(nn.Module):
         if 'axis_align_matrix' in data.keys():
             data['axis_align_matrix'] = torch.stack(data['axis_align_matrix'], dim=0)
 
-        if 'depths' in data.keys():
-            data['depths'] = torch.stack(data['depths'], dim=0)
-
-
         device = data['gt_labels_3d'][0].device 
         for i in range(len(data['gt_bboxes_3d'])):
             data['gt_bboxes_3d'][i] = data['gt_bboxes_3d'][i].to(device)
@@ -686,86 +671,7 @@ class AtlasGTDepth(nn.Module):
         data['tsdf_list'] = real_tsdf_list
         data.pop('axis_align_matrix')
         data.pop('tsdf_dict')
-        
-
         return data 
-        
     
     def init_weights(self):
         pass
-
-    def test_transform_train(self, inputs, vertex):
-        import open3d as o3d
-        sparse_features = self.switch_to_sparse(self.volume, self.valid, )
-        N = vertex.shape[0]
-        extend_vertex = torch.zeros((vertex.shape[0], 32), dtype=torch.float32).to(sparse_features[0].device)
-        vertex = torch.cat((vertex[:, 0:3], extend_vertex), dim=1) #N * 35
-        
-        sparse_features[0] = torch.cat((vertex, sparse_features[0]), dim=0) #(N + M) * 35
-
-        new_vertexes = []
-        gt_bboxes_3ds = []
-        for i in range(len(sparse_features)):
-            new_vertex, gt_bboxes_3d = self.feature_transform(sparse_features[i], inputs['gt_bboxes_3d'][i])
-            new_vertexes.append(new_vertex)
-            gt_bboxes_3ds.append(gt_bboxes_3d)
-        
-        vertex_ori = new_vertexes[0][0:N, 0:3].clone().detach().cpu().numpy()
-        vertex_fea = new_vertexes[0][N:, 0:3].clone().detach().cpu().numpy()
-        scene_id = inputs['scene'][0]
-        if not os.path.exists(os.path.join(self.save_path, scene_id)):
-            os.makedirs(os.path.join(self.save_path, scene_id))
-        pcd = o3d.geometry.PointCloud()
-        pcd.points = o3d.utility.Vector3dVector(vertex_ori)
-        o3d.io.write_point_cloud(os.path.join(self.save_path, scene_id, scene_id + '_points.ply'), pcd)
-        pcd = o3d.geometry.PointCloud()
-        pcd.points = o3d.utility.Vector3dVector(vertex_fea)
-        o3d.io.write_point_cloud(os.path.join(self.save_path, scene_id, scene_id + '_features.ply'), pcd)
-        gt_bbox = gt_bboxes_3ds[0].tensor.clone().detach().cpu().numpy()
-        gt_bbox[:, 2] = gt_bbox[:, 2] + gt_bbox[:, 5] / 2
-        gt_label = inputs['gt_labels_3d'][0].clone().detach().cpu().numpy()
-        gt_score = np.ones_like(gt_label, dtype=np.float32)
-        file_name = os.path.join(self.save_path, scene_id, scene_id + '_test.npz')
-        np.savez(file_name, boxes=gt_bbox, scores=gt_score, labels=gt_label)
-
-    def test_transform_valid(self, inputs):
-        import open3d as o3d
-        sparse_features = self.switch_to_sparse(self.volume, self.valid, inputs['offset'])
-        vertex = sparse_features[0][:, 0:3].clone().detach().cpu().numpy()
-        scene_id = inputs['scene'][0]
-        if not os.path.exists(os.path.join(self.save_path, scene_id)):
-            os.makedirs(os.path.join(self.save_path, scene_id))
-        pcd = o3d.geometry.PointCloud()
-        pcd.points = o3d.utility.Vector3dVector(vertex)
-        o3d.io.write_point_cloud(os.path.join(self.save_path, scene_id, scene_id + '_features.ply'), pcd)
-
-    def save_pc(self, inputs):
-        '''
-        Save TSDF with real coordinates
-        '''
-        import open3d as o3d
-        save_path = '/data1/sgl/depth_data'
-        
-        scene_id = inputs['scene'][0]
-        sparse_coords, sparse_features, _ = self.switch_to_sparse(self.volume, self.valid, inputs['gt_bboxes_3d'], inputs['offset'], tsdf=None, test=False)
-        feature = torch.cat((sparse_coords[0], sparse_features[0]), dim=1).clone().detach().cpu().numpy()
-        save_place = os.path.join(save_path, scene_id + '_vert.npy')
-        np.save(save_place, feature)
-        '''
-        vertex = sparse_coords[0][:, 0:3].clone().detach().cpu().numpy()
-        if not os.path.exists(os.path.join(save_path, scene_id)):
-            os.makedirs(os.path.join(save_path, scene_id))
-        pcd = o3d.geometry.PointCloud()
-        pcd.points = o3d.utility.Vector3dVector(vertex)
-        o3d.io.write_point_cloud(os.path.join(save_path, scene_id, scene_id + '_features.ply'), pcd)
-        
-        for i in range(len(inputs['scene'])):
-            gt_bbox = inputs['gt_bboxes_3d'][i].tensor.clone().detach().cpu().numpy()
-            gt_bbox[:, 2] = gt_bbox[:, 2] + gt_bbox[:, 5] / 2
-            gt_label = inputs['gt_labels_3d'][i].clone().detach().cpu().numpy()
-            gt_score = np.ones_like(gt_label, dtype=np.float32)
-            file_name = os.path.join(save_path, scene_id, scene_id + '_gt.npz')
-            np.savez(file_name, boxes=gt_bbox, scores=gt_score, labels=gt_label)
-        '''
-        kebab=0
-
