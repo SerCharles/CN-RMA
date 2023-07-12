@@ -66,6 +66,7 @@ class AtlasScanNetDataset(Custom3DDataset):
         tsdf_dict = self.read_scene_volumes(os.path.join(self.data_root, 'atlas_tsdf'), scene, self.voxel_size)
         annos = self.get_ann_info(index)
         
+        
         for i, vid in enumerate(image_ids):
             vid = str(int(vid)).zfill(5)
             img_path = os.path.join(self.data_root, 'posed_images', scene, vid + '.jpg')

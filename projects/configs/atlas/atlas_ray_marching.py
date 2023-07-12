@@ -27,7 +27,7 @@ lr_config = dict(policy='step', warmup=None, step=[80, 110])
 
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = '/home/sgl/work_dirs_atlas/40_19219280_pretrain'
+work_dir = '/home/sgl/work_dirs_atlas/atlas_ray_marching'
 save_path = work_dir + '/results'
 load_from = '/home/sgl/work_dirs_atlas/pipeline_link.pth'
 resume_from = None
@@ -65,7 +65,7 @@ test_pipeline = [
 data = dict(
     samples_per_gpu=1,
     workers_per_gpu=1, 
-    train_dataloader=dict(shuffle=True),
+    train_dataloader=dict(shuffle=False),
     test_dataloader=dict(shuffle=False),
     train=dict(
         type='AtlasScanNetDataset',

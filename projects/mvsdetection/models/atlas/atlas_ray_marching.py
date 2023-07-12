@@ -163,7 +163,7 @@ def ray_projection(voxel_dim, voxel_size, origin, projection, features, tsdf, gr
     tsdf_results[valid == 0] = 1.0 #mask bad tsdf
     tsdf_results = tsdf_results.view(B, H, W, grids) #B * H * W * T 
     
-     
+    
     #可视化方案：把voxel id转化成实际位置，可视化显示出来
     return o.view(B, 3, H, W, grids), d.view(B, 3, H, W, grids), voxel_id.view(B, 3, H, W, grids), valid.view(B, H, W, grids), tsdf_results 
     
@@ -444,10 +444,23 @@ class AtlasRayMarching(nn.Module):
         recon_result, recon_loss = self.atlas_reconstruction(inputs['tsdf_list'])
         
         #Ray marching
+        i = 0
         for projection, feature in zip(projections, features):
             o, d, voxel_id, valid, tsdf_results = ray_projection(self.voxel_dim, self.voxel_size, self.origin, projection, feature, recon_result['scene_tsdf_004'])
+            
+            kebab=0
+            scene_id = inputs['scene'][0]
+            image_id = inputs['image_ids'][0][i]
+            gt_tsdf = TSDF(self.voxel_size, self.origin, inputs['tsdf_list']['tsdf_gt_004'][0].squeeze(0))
+            gt_mesh = gt_tsdf.get_mesh()
+            if not os.path.exists(os.path.join(self.save_path, scene_id + '_' + str(image_id))):
+                os.makedirs(os.path.join(self.save_path, scene_id + '_' + str(image_id)))
+            mesh_path = os.path.join(self.save_path, scene_id + '_' + str(image_id), scene_id + '_' + str(image_id) + '.ply')
+            gt_mesh.export(mesh_path)
+            result_path = os.path.join(self.save_path, scene_id + '_' + str(image_id), scene_id + '_' + str(image_id) + '.npz')
+            np.savez(result_path, o=o.detach().cpu().numpy(), d=d.detach().cpu().numpy(), voxel_id=voxel_id.detach().cpu().numpy(), valid=valid.detach().cpu().numpy(), tsdf_results=tsdf_results.detach().cpu().numpy(), origin=self.origin)
+            i += 1
 
-        
         
         detection_loss = self.fcaf3d_detection(inputs, recon_result['scene_tsdf_004'], test=False)        
                 

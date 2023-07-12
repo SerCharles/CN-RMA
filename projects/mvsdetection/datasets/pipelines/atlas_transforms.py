@@ -54,6 +54,7 @@ class AtlasCollectData(object):
         result['projection'] = DC(data['projection'])
         result['tsdf_dict'] = DC(data['tsdf_dict'], cpu_only=True)
         result['scene'] = DC(data['scene'], cpu_only=True)
+        result['image_ids'] = DC(data['image_ids'], cpu_only=True)
         if 'depths' in data.keys():
             result['depths'] = DC(data['depths'])
         
