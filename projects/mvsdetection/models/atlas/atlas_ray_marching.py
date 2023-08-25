@@ -639,7 +639,7 @@ class AtlasRayMarching(nn.Module):
     def init_weights(self):
         pass
 
-    def ray_projection(self, projection, features, tsdf, grids=300, weight_threshold=0.1):
+    def ray_projection(self, projection, features, tsdf, grids=300, weight_threshold=0.05):
         """ Get the 3D coordinates of each pixel with tsdf
         Args:
             voxel_dim: size of voxel volume to construct (nx,ny,nz)
@@ -673,7 +673,7 @@ class AtlasRayMarching(nn.Module):
         t_one = t_max / N
         t = []
         for j in range(grids):
-            current_t = N * j 
+            current_t = t_one * j 
             current_ts = torch.ones(B, 3, H * W, 1, dtype=torch.float32) * current_t
             t.append(current_ts)
         t = torch.concat(t, dim=3).view(B, 3, H * W * N).to(device) #B * 3 * (H * W * N)
@@ -707,10 +707,15 @@ class AtlasRayMarching(nn.Module):
         valid = valid.view(B, H, W, N)
         
         #get the weights of each grids based on NEUS
+        #alpha_i = max((sigmoid(TSDF_i) - sigmoid(TSDF_i+1)) / sigmoid(TSDF_i), 0)
+        #T_i = (1 - alpha_0) * (1 - alpha_1) * ...... * (1 - alpha_i-1)
         sigmoid_tsdf = torch.sigmoid(-tsdf_results)
-        sigmoid_tsdf_next = torch.concat((sigmoid_tsdf[:, :, :, 1:], sigmoid_tsdf[:, :, :, -1:]), dim=3)
+        sigmoid_tsdf_next = torch.cat((sigmoid_tsdf[:, :, :, 1:], sigmoid_tsdf[:, :, :, -1:]), dim=3)
         alpha = torch.clamp((sigmoid_tsdf - sigmoid_tsdf_next) / sigmoid_tsdf, min=0) #B * H * W * N
-        
+        T_next = torch.cumprod(1 - alpha, dim=3)
+        one = torch.ones((B, H, W, 1), dtype=torch.float32).to(device)
+        T = torch.cat((one, T_next[:, :, :, :-1]), dim=3)
+        weights = T * alpha
         
         #normalize to sum=1
         weights = weights / torch.sum(weights, dim=3).view(B, H, W, 1).repeat(1, 1, 1, N)

@@ -130,7 +130,7 @@ def visualize_ray(mesh_path, ray_path, save_path, mode='weight'):
     hs = [0, 0, H - 1, H - 1, H // 2, H // 2, 0, 0, H - 1, H - 1, H // 2, H // 2]
     ws = [0, W - 1, 0, W - 1, W // 2, (W * 3) // 4, 0, W - 1, 0, W - 1, W // 2, (W * 3) // 4]
     tsdf_threshold = [1, 1, 1, 1, 1, 1, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9]
-    weight_threshold = [0, 0, 0, 0, 0, 0, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+    weight_threshold = [0, 0, 0, 0, 0, 0, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
     color_tsdf_thresholds = [0.75, 0.5, 0.25, 0.1, -1]
     color_weight_thresholds = [0.2, 0.4, 0.6, 0.8, 1.1]
     
