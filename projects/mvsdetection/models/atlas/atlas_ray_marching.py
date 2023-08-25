@@ -106,67 +106,7 @@ def get_ray_parameter(projection, features):
     d = F.normalize(d, p=2, dim=1)
     return o, d
 
-def ray_projection(voxel_dim, voxel_size, origin, projection, features, tsdf, grids=300):
-    """ Get the 3D coordinates of each pixel with tsdf
-    Args:
-        voxel_dim: size of voxel volume to construct (nx,ny,nz)
-        voxel_size: metric size of each voxel (ex: .04m)
-        origin: origin of the voxel volume (xyz position of voxel (0,0,0))
-        projection: bx3x4 projection matrices (intrinsics@extrinsics)
-        features: bxcxhxw  2d feature tensor to be backprojected into 3d
-        tsdf: b x 1 x nx x ny x nz tsdf map
-        grids: the grid samples of each line
 
-    Returns:
-        volume: b x c x nx x ny x nz 3d feature volume
-        valid:  b x 1 x nx x ny x nz volume.
-                Each voxel contains a 1 if it projects to a pixel
-                and 0 otherwise (not in view frustrum of the camera)
-    """
-    
-    X, Y, Z = voxel_dim
-    B, C, H, W = features.size()
-    device = features.device
-    origin_extend = origin.view(B, 3, 1).repeat(1, 1, H * W).to(device) #B * 3 * (H * W)
-    o, d = get_ray_parameter(projection, features) #B * 3 * (H * W)
-    
-    #get the t
-    t_max = sqrt(X ** 2 + Y ** 2 + Z ** 2) * voxel_size 
-    t_one = t_max / grids
-    t = []
-    for j in range(grids):
-        current_t = t_one * j 
-        current_ts = torch.ones(B, 3, H * W, 1, dtype=torch.float32) * current_t
-        t.append(current_ts)
-    t = torch.concat(t, dim=3).view(B, 3, H * W * grids).to(device) #B * 3 * (H * W * T)
-        
-    #get voxel ids
-    d = d.view(B, 3, H * W, 1).repeat(1, 1, 1, grids).view(B, 3, H * W * grids) #B * 3 * (H * W * T)
-    o = o.view(B, 3, H * W, 1).repeat(1, 1, 1, grids).view(B, 3, H * W * grids) #B * 3 * (H * W * T)
-    origin_extend = origin_extend.view(B, 3, H * W, 1).repeat(1, 1, 1, grids).view(B, 3, H * W * grids) #B * 3 * (H * W * T)
-    place = o + d * t
-    voxel_id = ((place - origin_extend) / voxel_size).round().type(torch.long) #B * 3 * (H * W * T)
-    valid = (voxel_id[:, 0, :] >= 0) & (voxel_id[:, 0, :] < X) & \
-            (voxel_id[:, 1, :] >= 0) & (voxel_id[:, 1, :] < Y) & \
-            (voxel_id[:, 2, :] >= 0) & (voxel_id[:, 2, :] < Z) #B * (H * W * T)
-    voxel_id[:, 0, :][valid == 0] = 0
-    voxel_id[:, 1, :][valid == 0] = 0
-    voxel_id[:, 2, :][valid == 0] = 0
-
-    
-    #get tsdf values 
-    tsdf_results = []
-    for b in range(B):
-        tsdf_result = tsdf[b, 0, voxel_id[b, 0, :], voxel_id[b, 1, :], voxel_id[b, 2, :]]
-        tsdf_results.append(tsdf_result)
-    tsdf_results = torch.stack(tsdf_results, dim=0) #B * (H * W * T)
-    tsdf_results[valid == 0] = 1.0 #mask bad tsdf
-    tsdf_results = tsdf_results.view(B, H, W, grids) #B * H * W * T 
-    
-    
-    #可视化方案：把voxel id转化成实际位置，可视化显示出来
-    return o.view(B, 3, H, W, grids), d.view(B, 3, H, W, grids), voxel_id.view(B, 3, H, W, grids), valid.view(B, H, W, grids), tsdf_results 
-    
 
 
 @DETECTORS.register_module()
@@ -446,19 +386,29 @@ class AtlasRayMarching(nn.Module):
         #Ray marching
         i = 0
         for projection, feature in zip(projections, features):
-            o, d, voxel_id, valid, tsdf_results = ray_projection(self.voxel_dim, self.voxel_size, self.origin, projection, feature, recon_result['scene_tsdf_004'])
+            o, d, voxel_id, valid, tsdf_results, weights = self.ray_projection(projection, feature, recon_result['scene_tsdf_004'])
             
             kebab=0
             scene_id = inputs['scene'][0]
             image_id = inputs['image_ids'][0][i]
-            gt_tsdf = TSDF(self.voxel_size, self.origin, inputs['tsdf_list']['tsdf_gt_004'][0].squeeze(0))
-            gt_mesh = gt_tsdf.get_mesh()
+            result_tsdf = TSDF(self.voxel_size, self.origin, recon_result['scene_tsdf_004'][0].squeeze(0))
+            result_mesh = result_tsdf.get_mesh()
             if not os.path.exists(os.path.join(self.save_path, scene_id + '_' + str(image_id))):
                 os.makedirs(os.path.join(self.save_path, scene_id + '_' + str(image_id)))
             mesh_path = os.path.join(self.save_path, scene_id + '_' + str(image_id), scene_id + '_' + str(image_id) + '.ply')
-            gt_mesh.export(mesh_path)
+            result_mesh.export(mesh_path)
             result_path = os.path.join(self.save_path, scene_id + '_' + str(image_id), scene_id + '_' + str(image_id) + '.npz')
-            np.savez(result_path, o=o.detach().cpu().numpy(), d=d.detach().cpu().numpy(), voxel_id=voxel_id.detach().cpu().numpy(), valid=valid.detach().cpu().numpy(), tsdf_results=tsdf_results.detach().cpu().numpy(), origin=self.origin)
+            np.savez(result_path, o=o.detach().cpu().numpy(), d=d.detach().cpu().numpy(), voxel_id=voxel_id.detach().cpu().numpy(), valid=valid.detach().cpu().numpy(), tsdf_results=tsdf_results.detach().cpu().numpy(), origin=self.origin, weights=weights.detach().cpu().numpy())
+            
+            tsdf_path = os.path.join(self.save_path, scene_id + '_' + str(image_id), scene_id + '_' + str(image_id) + '_tsdf.npz')
+            result_tsdf.save(tsdf_path)
+            gt_tsdf = TSDF(self.voxel_size, self.origin, inputs['tsdf_list']['tsdf_gt_004'][0].squeeze(0))
+            gt_tsdf_path = os.path.join(self.save_path, scene_id + '_' + str(image_id), scene_id + '_' + str(image_id) + '_gt_tsdf.npz')
+            gt_tsdf.save(gt_tsdf_path)
+            gt_mesh_path = os.path.join(self.save_path, scene_id + '_' + str(image_id), scene_id + '_' + str(image_id) + '_gt.ply')
+            gt_mesh = gt_tsdf.get_mesh()
+            gt_mesh.export(gt_mesh_path)
+
             i += 1
 
         
@@ -688,3 +638,103 @@ class AtlasRayMarching(nn.Module):
     
     def init_weights(self):
         pass
+
+    def ray_projection(self, projection, features, tsdf, grids=300, weight_threshold=0.1):
+        """ Get the 3D coordinates of each pixel with tsdf
+        Args:
+            voxel_dim: size of voxel volume to construct (nx,ny,nz)
+            voxel_size: metric size of each voxel (ex: .04m)
+            origin: origin of the voxel volume (xyz position of voxel (0,0,0))
+            projection: bx3x4 projection matrices (intrinsics@extrinsics)
+            features: bxcxhxw  2d feature tensor to be backprojected into 3d
+            tsdf: b x 1 x nx x ny x nz tsdf map
+            grids: the grid samples of each line
+            weight_threshold: the min threshold for a voxel to be considered
+
+        Returns:
+            volume: b x c x nx x ny x nz 3d feature volume
+            valid:  b x 1 x nx x ny x nz volume.
+                    Each voxel contains a 1 if it projects to a pixel
+                    and 0 otherwise (not in view frustrum of the camera)
+        """
+    
+        X, Y, Z = self.voxel_dim
+        B, C, H, W = features.size()
+        N = grids
+        device = features.device
+        origin_extend = self.origin.view(B, 3, 1).repeat(1, 1, H * W).to(device) #B * 3 * (H * W)
+        projection = projection.clone()
+        projection[:,:2,:] = projection[:,:2,:] / self.backbone2d_stride
+    
+        o, d = get_ray_parameter(projection, features) #B * 3 * (H * W)
+    
+        #get the t
+        t_max = sqrt(X ** 2 + Y ** 2 + Z ** 2) * self.voxel_size 
+        t_one = t_max / N
+        t = []
+        for j in range(grids):
+            current_t = N * j 
+            current_ts = torch.ones(B, 3, H * W, 1, dtype=torch.float32) * current_t
+            t.append(current_ts)
+        t = torch.concat(t, dim=3).view(B, 3, H * W * N).to(device) #B * 3 * (H * W * N)
+        
+        #get voxel ids
+        d = d.view(B, 3, H * W, 1).repeat(1, 1, 1, N).view(B, 3, H * W * N) #B * 3 * (H * W * N)
+        o = o.view(B, 3, H * W, 1).repeat(1, 1, 1, N).view(B, 3, H * W * N) #B * 3 * (H * W * N)
+        origin_extend = origin_extend.view(B, 3, H * W, 1).repeat(1, 1, 1, N).view(B, 3, H * W * N) #B * 3 * (H * W * N)
+        place = o + d * t
+        voxel_id = ((place - origin_extend) / self.voxel_size).round().type(torch.long) #B * 3 * (H * W * N)
+        valid = (voxel_id[:, 0, :] >= 0) & (voxel_id[:, 0, :] < X) & \
+                (voxel_id[:, 1, :] >= 0) & (voxel_id[:, 1, :] < Y) & \
+                (voxel_id[:, 2, :] >= 0) & (voxel_id[:, 2, :] < Z) #B * (H * W * N)
+        voxel_id[:, 0, :][valid == 0] = 0
+        voxel_id[:, 1, :][valid == 0] = 0
+        voxel_id[:, 2, :][valid == 0] = 0
+
+    
+        #get tsdf values
+        tsdf_results = []
+        for b in range(B):
+            tsdf_result = tsdf[b, 0, voxel_id[b, 0, :], voxel_id[b, 1, :], voxel_id[b, 2, :]]
+            tsdf_results.append(tsdf_result)
+        tsdf_results = torch.stack(tsdf_results, dim=0) #B * (H * W * N)
+        tsdf_results[valid == 0] = 1.0 #mask bad tsdf
+        tsdf_results = tsdf_results.view(B, H, W, N) #B * H * W * N 
+    
+        o = o.view(B, 3, H, W, N)
+        d = d.view(B, 3, H, W, N)
+        voxel_id = voxel_id.view(B, 3, H, W, N)
+        valid = valid.view(B, H, W, N)
+        
+        #get the weights of each grids based on NEUS
+        sigmoid_tsdf = torch.sigmoid(-tsdf_results)
+        sigmoid_tsdf_next = torch.concat((sigmoid_tsdf[:, :, :, 1:], sigmoid_tsdf[:, :, :, -1:]), dim=3)
+        alpha = torch.clamp((sigmoid_tsdf - sigmoid_tsdf_next) / sigmoid_tsdf, min=0) #B * H * W * N
+        
+        
+        #normalize to sum=1
+        weights = weights / torch.sum(weights, dim=3).view(B, H, W, 1).repeat(1, 1, 1, N)
+        
+        #get the features of each grids, add weights
+        weighted_features = features.view(B, C, H, W, 1).repeat(1, 1, 1, 1, N)
+        valid_grid = weights >= weight_threshold
+        valid_final = valid & valid_grid
+        weights = weights * valid_final
+        weights_repeat = weights.view(B, 1, H, W, N).repeat(1, C, 1, 1, 1)
+        weighted_features = weighted_features * weights_repeat
+        
+        '''
+        #allocate the weights to voxels
+        volume = torch.zeros(B, C, X, Y, Z, dtype=features.dtype, device=device)
+        voxel_id = voxel_id.view(B, 3, H * W * N)
+        weighted_features = weighted_features.view(B, C, H * W * N)
+        for b in range(b):
+            for c in range(C):
+                volume[b, c, voxel_id[b, 0, :], voxel_id[b, 1, :], voxel_id[b, 2, :]] = weighted_features[b, c, :]
+        valid_output = volume > 0
+        return volume, valid_output
+        '''
+        
+        #可视化方案：把voxel id转化成实际位置，可视化显示出来
+        return o, d, voxel_id, valid, tsdf_results, weights 
+    

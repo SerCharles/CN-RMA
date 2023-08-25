@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import glob
 import trimesh
 import argparse
+import open3d as o3d
 from math import *
 
 
@@ -103,84 +104,125 @@ def init_scene(mesh_path, meta_path):
     return mesh 
 
 
-def visualize_ray(mesh_path, ray_path, save_path):
+def visualize_ray(mesh_path, ray_path, save_path, mode='weight'):
     """
     Visualize the boxes and quads in the final pointcloud
     
     Args:
         mesh_path [str]: [the path of the original mesh]
-        ray_path [str]: [the path of the ray_info]
+        ray_path [str]: [the path of the ray info]
         save_path [str]: [the saving path]
+        mode [str]: [select by weight or tsdf]
     """
     colors = np.multiply([
         plt.cm.get_cmap('gist_ncar', 37)((i * 7 + 5) % 37)[:3] for i in range(37)
     ], 255).astype(np.uint8).tolist()
     ray_info = np.load(ray_path)
-    os = ray_info['o'] #B * 3 * H * W * T
-    ds = ray_info['d'] #B * 3 * H * W * T
-    voxel_ids = ray_info['voxel_id'] #B * 3 * H * W * T
-    valids = ray_info['valid'] #B * H * W * T
-    tsdf_results = ray_info['tsdf_results'] #B * H * W * T
+    os = ray_info['o'] #B * 3 * H * W * N
+    ds = ray_info['d'] #B * 3 * H * W * N
+    voxel_ids = ray_info['voxel_id'] #B * 3 * H * W * N
+    valids = ray_info['valid'] #B * H * W * N
+    tsdf_results = ray_info['tsdf_results'] #B * H * W * N
+    weights = ray_info['weights'] #B * H * W * N
     origin = ray_info['origin'][0]
-    B, H, W, T = tsdf_results.shape
+    B, H, W, N = tsdf_results.shape
 
-
-    b = 0 
-    h = H - 1
-    w = W - 1
-
-    all_edges = [] 
-    all_colors = []    
-    o = os[b, :, h, w, 0]
-    d = ds[b, :, h, w, 0]
-    t_max = sqrt(192 ** 2 + 192 ** 2 + 80 ** 2) * 0.04
-    final = o + d * t_max  
-    edge = np.stack([o, final], axis=0)[None, :, :]
-    all_edges.append(edge)
-    all_colors.extend([colors[10]])
+    hs = [0, 0, H - 1, H - 1, H // 2, H // 2, 0, 0, H - 1, H - 1, H // 2, H // 2]
+    ws = [0, W - 1, 0, W - 1, W // 2, (W * 3) // 4, 0, W - 1, 0, W - 1, W // 2, (W * 3) // 4]
+    tsdf_threshold = [1, 1, 1, 1, 1, 1, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9]
+    weight_threshold = [0, 0, 0, 0, 0, 0, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+    color_tsdf_thresholds = [0.75, 0.5, 0.25, 0.1, -1]
+    color_weight_thresholds = [0.2, 0.4, 0.6, 0.8, 1.1]
     
-    for i in range(T):
-        voxel_id = voxel_ids[b, :, h, w, i]
-        valid = valids[b, h, w, i]
-        if valid:
-            edges = get_voxel_edges(voxel_id, origin, 0.04)
-            all_edges.append(edges)
-            all_colors.extend([colors[0]] * 12)
+    for ii in range(len(hs)):
+        b = 0 
+        h = hs[ii]
+        w = ws[ii]
+        if mode == 'tsdf':
+            threshold = tsdf_threshold[ii]
+            if threshold < 1:
+                tt = 'tsdf'
+            else:
+                tt = 'no'
+        else:
+            threshold = weight_threshold[ii]
+            if threshold > 0:
+                tt = 'weight'
+            else:
+                tt = 'no'
+        current_save_path = save_path + str(h) + '_' + str(w) + '_' + tt + '.ply'
 
-    if len(all_edges) > 0:
-        all_edges = np.concatenate(all_edges, axis=0)
 
-    original_trimesh = init_scene(mesh_path, None)
-    scene = trimesh.scene.Scene()
-    scene.add_geometry(original_trimesh)
+        all_edges = [] 
+        all_colors = []    
+        o = os[b, :, h, w, 0]
+        d = ds[b, :, h, w, 0]
+        t_max = sqrt(192 ** 2 + 192 ** 2 + 80 ** 2) * 0.04
+        final = o + d * t_max  
+        edge = np.stack([o, final], axis=0)[None, :, :]
+        all_edges.append(edge)
+        all_colors.extend([colors[10]])
     
-    rad = 0.005
-    res = 16
-    for i in range(len(all_edges)):
-        source = all_edges[i][0]
-        target = all_edges[i][1]
-        edge_color = all_colors[i]
+        for i in range(N):
+            voxel_id = voxel_ids[b, :, h, w, i]
+            valid = valids[b, h, w, i]
+            tsdf = tsdf_results[b, h, w, i]
+            weight = weights[b, h, w, i]
+            
+            if mode == 'tsdf' and abs(tsdf) <= threshold and valid:
+                edges = get_voxel_edges(voxel_id, origin, 0.04)
+                all_edges.append(edges)
+                color = colors[4]
+                for jj in range(len(color_tsdf_thresholds)):
+                    if tsdf > color_tsdf_thresholds[jj]:
+                        color = colors[jj]
+                        break
+                all_colors.extend([color] * 12)
+            elif mode == 'weight' and weight >= threshold and valid:
+                edges = get_voxel_edges(voxel_id, origin, 0.04)
+                all_edges.append(edges)
+                for jj in range(len(color_weight_thresholds)):
+                    if weight < color_weight_thresholds[jj]:
+                        color = colors[jj]
+                        break
+                all_colors.extend([color] * 12)
+
+        if len(all_edges) > 0:
+            all_edges = np.concatenate(all_edges, axis=0)
+
+        original_trimesh = init_scene(mesh_path, None)
+        scene = trimesh.scene.Scene()
+        scene.add_geometry(original_trimesh)
+
+        rad = 0.005
+        res = 16
+        for i in range(len(all_edges)):
+            source = all_edges[i][0]
+            target = all_edges[i][1]
+            edge_color = all_colors[i]
         
-        # compute line
-        vector = target - source 
-        M = trimesh.geometry.align_vectors([0,0,1], vector, False)
-        vector = target - source # compute again since align_vectors modifies vec in-place!
-        M[:3,3] = 0.5 * source + 0.5 * target
-        height = np.sqrt(np.dot(vector, vector))
-        edge_mesh = trimesh.creation.cylinder(radius=rad, height=height, sections=res, transform=M)
-        edge_vertexs = np.array(edge_mesh.vertices).tolist()
-        edge_colors = [edge_color] * len(edge_vertexs)
-        edge_faces = np.array(edge_mesh.faces).tolist()
-        edge_mesh = trimesh.Trimesh(vertices=edge_vertexs, vertex_colors=edge_colors, faces=edge_faces)
-        scene.add_geometry(edge_mesh)
-    
-    scene = trimesh.util.concatenate(scene.dump())
-    scene.export(save_path)
+            # compute line
+            vector = target - source 
+            M = trimesh.geometry.align_vectors([0,0,1], vector, False)
+            vector = target - source # compute again since align_vectors modifies vec in-place!
+            M[:3,3] = 0.5 * source + 0.5 * target
+            height = np.sqrt(np.dot(vector, vector))
+            edge_mesh = trimesh.creation.cylinder(radius=rad, height=height, sections=res, transform=M)
+            edge_vertexs = np.array(edge_mesh.vertices).tolist()
+            edge_colors = [edge_color] * len(edge_vertexs)
+            edge_faces = np.array(edge_mesh.faces).tolist()
+            edge_mesh = trimesh.Trimesh(vertices=edge_vertexs, vertex_colors=edge_colors, faces=edge_faces)
+            scene.add_geometry(edge_mesh)
 
+
+        scene = trimesh.util.concatenate(scene.dump())
+        scene.export(current_save_path)
 
 
 if __name__ == "__main__":
+    
     mesh_path = '/home/sgl/work_dirs_atlas/atlas_ray_marching/results/scene0000_00_331/scene0000_00_331.ply'
     ray_path = '/home/sgl/work_dirs_atlas/atlas_ray_marching/results/scene0000_00_331/scene0000_00_331.npz'
-    save_path = '/home/sgl/work_dirs_atlas/atlas_ray_marching/results/scene0000_00_331/scene0000_00_331_result.ply'
+    save_path = '/home/sgl/work_dirs_atlas/atlas_ray_marching/results/scene0000_00_331/scene0000_00_331_'
     visualize_ray(mesh_path, ray_path, save_path)
+    visualize_ray(mesh_path, ray_path, save_path, mode='tsdf')

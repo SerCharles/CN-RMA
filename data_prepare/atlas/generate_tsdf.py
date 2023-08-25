@@ -29,12 +29,12 @@ from tsdf import TSDFFusion, TSDF, coordinates, depth_to_world
 from tqdm import tqdm
 import ray
 import torch.multiprocessing
-torch.multiprocessing.set_sharing_strategy('file_system')
+#torch.multiprocessing.set_sharing_strategy('file_system')
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Fuse ground truth tsdf on Scannet')
-    parser.add_argument("--data_path", type=str, default='/data/shenguanlin/ScanNet',
+    parser.add_argument("--data_path", type=str, default='/data1/sgl/ScanNet',
         help="path to raw dataset")
     parser.add_argument('--n_proc', default=2, type=int)
     parser.add_argument('--n_gpu', default=2, type=int)
@@ -137,12 +137,12 @@ def fuse_scene(args, scene, frame_list, voxel_size, trunc_ratio=3,
 
 
 
-@ray.remote(num_cpus=args.num_workers + 1, num_gpus=(1 / args.n_proc))
+#@ray.remote(num_cpus=args.num_workers + 1, num_gpus=(1 / args.n_proc))
 def prepare_scannet_single(args, scenes):
     for scene in tqdm(scenes):
         save_path = os.path.join(args.save_path, scene)
-        if os.path.exists(os.path.join(save_path, 'tsdf_16.npz')):
-            continue
+        '''if os.path.exists(os.path.join(save_path, 'tsdf_16.npz')):
+            continue'''
         if not os.path.exists(save_path):
             os.mkdir(save_path)
         
@@ -215,14 +215,14 @@ def main(args):
     scenes += [scene for scene in os.listdir(os.path.join(args.data_path, 'scans_test'))]
     scenes.sort()
     
-    all_proc = args.n_proc * args.n_gpu
+    '''all_proc = args.n_proc * args.n_gpu
     ray.init(num_cpus=all_proc * (args.num_workers + 1), num_gpus=args.n_gpu)
     files = split_list(scenes, all_proc)
     ray_worker_ids = []
     for w_idx in range(all_proc):
         ray_worker_ids.append(prepare_scannet_single.remote(args, files[w_idx]))
 
-    results = ray.get(ray_worker_ids)
+    results = ray.get(ray_worker_ids)'''
     
     
     prepare_scannet_single(args, scenes)
