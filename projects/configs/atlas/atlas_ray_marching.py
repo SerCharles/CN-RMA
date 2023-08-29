@@ -65,7 +65,7 @@ test_pipeline = [
 data = dict(
     samples_per_gpu=1,
     workers_per_gpu=1, 
-    train_dataloader=dict(shuffle=False),
+    train_dataloader=dict(shuffle=True),
     test_dataloader=dict(shuffle=False),
     train=dict(
         type='AtlasScanNetDataset',

@@ -106,6 +106,25 @@ def get_ray_parameter(projection, features):
     d = F.normalize(d, p=2, dim=1)
     return o, d
 
+def sparse_to_dense(locs, values, dim, c, default_val, device):
+    """
+    switch sparse point cloud with feature to dense grid
+
+    Args:
+        locs [torch float array], [N * 3]: [the X, Y, Z sparse coordinates]
+        values [torch float array], [N * C]: [the sparse sparse data]
+        dim [array], [3]: [the X, Y, Z dim]
+        c [int]: [the channels]
+        default_val [float]: [the default value]
+        device [pytorch device]: [the device of the new value]
+
+    Returns:
+        dense [torch float array], [X * Y * Z * C]: [the dense voxel grid]
+    """
+    dense = torch.full([dim[0], dim[1], dim[2], c], float(default_val), device=device)
+    if locs.shape[0] > 0:
+        dense[locs[:, 0], locs[:, 1], locs[:, 2]] = values
+    return dense
 
 
 
@@ -642,9 +661,6 @@ class AtlasRayMarching(nn.Module):
     def ray_projection(self, projection, features, tsdf, grids=300, weight_threshold=0.05):
         """ Get the 3D coordinates of each pixel with tsdf
         Args:
-            voxel_dim: size of voxel volume to construct (nx,ny,nz)
-            voxel_size: metric size of each voxel (ex: .04m)
-            origin: origin of the voxel volume (xyz position of voxel (0,0,0))
             projection: bx3x4 projection matrices (intrinsics@extrinsics)
             features: bxcxhxw  2d feature tensor to be backprojected into 3d
             tsdf: b x 1 x nx x ny x nz tsdf map
@@ -652,10 +668,10 @@ class AtlasRayMarching(nn.Module):
             weight_threshold: the min threshold for a voxel to be considered
 
         Returns:
-            volume: b x c x nx x ny x nz 3d feature volume
-            valid:  b x 1 x nx x ny x nz volume.
-                    Each voxel contains a 1 if it projects to a pixel
-                    and 0 otherwise (not in view frustrum of the camera)
+            volumes: b x c x nx x ny x nz 3d feature volume
+            grid_weights:  b x 1 x nx x ny x nz volume.
+                    Each voxel contains a positive weight if it projects to a pixel
+                    and 0 otherwise 
         """
     
         X, Y, Z = self.voxel_dim
@@ -717,8 +733,12 @@ class AtlasRayMarching(nn.Module):
         T = torch.cat((one, T_next[:, :, :, :-1]), dim=3)
         weights = T * alpha
         
-        #normalize to sum=1
+        '''
+        #TODO：需要尝试把weight对于每条射线归一化，总和为1
         weights = weights / torch.sum(weights, dim=3).view(B, H, W, 1).repeat(1, 1, 1, N)
+        #可视化方案：把voxel id转化成实际位置，可视化显示出来
+        return o, d, voxel_id, valid, tsdf_results, weights 
+        '''
         
         #get the features of each grids, add weights
         weighted_features = features.view(B, C, H, W, 1).repeat(1, 1, 1, 1, N)
@@ -726,20 +746,43 @@ class AtlasRayMarching(nn.Module):
         valid_final = valid & valid_grid
         weights = weights * valid_final
         weights_repeat = weights.view(B, 1, H, W, N).repeat(1, C, 1, 1, 1)
-        weighted_features = weighted_features * weights_repeat
+        weighted_features = weighted_features * weights_repeat #B * C * H * W * N
         
-        '''
-        #allocate the weights to voxels
-        volume = torch.zeros(B, C, X, Y, Z, dtype=features.dtype, device=device)
-        voxel_id = voxel_id.view(B, 3, H * W * N)
+        #select useful features
+        flatten_valid = valid_final.view(B, H * W * N)
         weighted_features = weighted_features.view(B, C, H * W * N)
-        for b in range(b):
-            for c in range(C):
-                volume[b, c, voxel_id[b, 0, :], voxel_id[b, 1, :], voxel_id[b, 2, :]] = weighted_features[b, c, :]
-        valid_output = volume > 0
-        return volume, valid_output
-        '''
+        voxel_id = voxel_id.view(B, 3, H * W * N)
+        weights = weights.view(B, 1, H * W * N)
+        useful_features = []
+        useful_weights = []
+        useful_indices = []
+        for b in range(B):
+            useful_id = torch.squeeze(torch.nonzero(flatten_valid[b]))
+            useful_feature = weighted_features[b, :, useful_id].permute(1, 0) #M * C
+            useful_weight = weights[b, :, useful_id].permute(1, 0) #M * 1
+            useful_index = voxel_id[b, :, useful_id].permute(1, 0) #M * 3
+            useful_features.append(useful_feature)
+            useful_weights.append(useful_weight)
+            useful_indices.append(useful_index)
         
-        #可视化方案：把voxel id转化成实际位置，可视化显示出来
-        return o, d, voxel_id, valid, tsdf_results, weights 
+        
+        #allocate the weights to voxels
+        #TODO：需要尝试排序weight，保证多个pixel的voxel重复的时候，保留weight最大值
+        volumes = []
+        grid_weights = []
+        for b in range(B):
+            volume = sparse_to_dense(useful_indices[b], useful_features[b], [X, Y, Z], C, 0.0, device) #X * Y * Z * C
+            grid_weight = sparse_to_dense(useful_indices[b], useful_weights[b], [X, Y, Z], 1, 0.0, device) #X * Y * Z * 1
+            volume = volume.permute(3, 0, 1, 2)
+            grid_weight = grid_weight.permute(3, 0, 1, 2)
+            volumes.append(volume)
+            grid_weights.append(grid_weight)
+        volumes = torch.stack(volumes, dim=0)
+        grid_weights = torch.stack(grid_weights, dim=0)
+        
+        return volumes, grid_weights
+        
+        
+
     
+
