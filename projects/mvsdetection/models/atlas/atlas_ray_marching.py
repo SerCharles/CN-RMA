@@ -207,6 +207,7 @@ class AtlasRayMarching(nn.Module):
         self.volume = 0
         self.valid = 0
         self.volume_detection = 0
+        self.weight_detection = 0
         self.valid_detection = 0
 
     def normalizer(self, x):
@@ -218,7 +219,7 @@ class AtlasRayMarching(nn.Module):
         x = self.feature_2d(x)
         return x
 
-    def aggregate_2d_features(self, projection, image=None, feature=None):
+    def aggregate_2d_features(self, projection, feature):
         """ Backprojects image features into 3D and accumulates them.
 
         This is the first half of the network which is run on every frame.
@@ -230,19 +231,10 @@ class AtlasRayMarching(nn.Module):
 
         Args:
             projection: bx3x4 projection matrix
-            image: bx3xhxw RGB image
             feature: bxcxh'xw' feature map (h'=h/stride, w'=w/stride)
 
         Feature volume is accumulated into self.volume and self.valid
         """
-
-        assert ((image is not None and feature is None) or 
-                (image is None and feature is not None))
-
-        if feature is None:
-            image = self.normalizer(image)
-            feature = self.backbone2d(image)
-
         # backbone2d reduces the size of the images so we 
         # change intrinsics to reflect this
         projection = projection.clone()
@@ -252,6 +244,7 @@ class AtlasRayMarching(nn.Module):
 
         self.volume = self.volume + volume
         self.valid = self.valid + valid
+        
 
     def clear_3d_features(self):
         """
@@ -265,6 +258,28 @@ class AtlasRayMarching(nn.Module):
         self.volume = self.volume.transpose(0,1)
         self.valid = self.valid > 0
         
+    def aggregate_2d_features_ray_marching(self, projections, features, tsdf):
+        """ Backprojects image features into 3D using ray marching and get the final result
+
+        Args:
+            projection: bx3x4 projection matrix
+            feature: bxcxh'xw' feature map (h'=h/stride, w'=w/stride)
+
+        Feature volume is accumulated into self.volume and self.valid
+        """
+        for projection, feature in zip(projections, features):
+            volume, weights = self.ray_projection(projection, feature, tsdf)
+            self.volume_detection = self.volume_detection + volume 
+            self.weight_detection = self.weight_detection + weights
+
+        self.volume_detection = self.volume_detection / self.weight_detection
+
+        # remove nans (where self.weight_detection == 0)
+        valid = self.weight_detection > 0
+        self.volume_detection = self.volume_detection.transpose(0,1)
+        self.volume_detection[:, valid.squeeze(1)==0] = 0
+        self.volume_detection = self.volume_detection.transpose(0,1)
+        self.valid_detection = valid
         
     def atlas_reconstruction(self, targets=None):
         """ Refines accumulated features and regresses output TSDF.
@@ -378,7 +393,7 @@ class AtlasRayMarching(nn.Module):
     def forward_train(self, inputs):
         self.voxel_dim = self.voxel_dim_train
         self.initialize_volume()
-
+        scene_id = inputs['scene'][0]
         image = inputs['imgs']
         projection = inputs['projection']
         images = image.transpose(0,1)
@@ -389,25 +404,33 @@ class AtlasRayMarching(nn.Module):
             features = self.backbone2d(image)
             features = features.view(images.shape[0], images.shape[1], *features.shape[1:])
             for projection, feature in zip(projections, features):
-                self.aggregate_2d_features(projection, feature=feature)
+                self.aggregate_2d_features(projection, feature)
             self.clear_3d_features()
         else:
-            for projection, image in zip(projections, images):
-                self.aggregate_2d_features(projection, image=image)
+            features = []
+            for image in images:
+                image = self.normalizer(image)
+                feature = self.backbone2d(image)
+                features.append(feature)
+            features = torch.stack(features, dim=0)
+            for projection, feature in zip(projections, features):
+                self.aggregate_2d_features(projection, feature)
             self.clear_3d_features()
-        
-        
-        
         
         # run 3d cnn
         recon_result, recon_loss = self.atlas_reconstruction(inputs['tsdf_list'])
         
-        #Ray marching
+        #ray marching
+        self.aggregate_2d_features_ray_marching(projections, features, recon_result['scene_tsdf_004'])
+        
+
+        
+        '''
+        #Ray marching test
         i = 0
         for projection, feature in zip(projections, features):
-            o, d, voxel_id, valid, tsdf_results, weights = self.ray_projection(projection, feature, recon_result['scene_tsdf_004'])
-            
-            kebab=0
+            volume, weights = self.ray_projection(projection, feature, recon_result['scene_tsdf_004'])
+            o, d, voxel_id, valid, tsdf_results, weights = self.ray_projection(projection, feature, recon_result['scene_tsdf_004'])            
             scene_id = inputs['scene'][0]
             image_id = inputs['image_ids'][0][i]
             result_tsdf = TSDF(self.voxel_size, self.origin, recon_result['scene_tsdf_004'][0].squeeze(0))
@@ -429,7 +452,22 @@ class AtlasRayMarching(nn.Module):
             gt_mesh.export(gt_mesh_path)
 
             i += 1
-
+            
+            
+            volume, weights = self.ray_projection(projection, feature, recon_result['scene_tsdf_004'])
+            scene_id = inputs['scene'][0]
+            image_id = inputs['image_ids'][0][i]
+            result_tsdf = TSDF(self.voxel_size, self.origin, recon_result['scene_tsdf_004'][0].squeeze(0))
+            result_mesh = result_tsdf.get_mesh()
+            if not os.path.exists(os.path.join(self.save_path, scene_id + '_' + str(image_id))):
+                os.makedirs(os.path.join(self.save_path, scene_id + '_' + str(image_id)))
+            mesh_path = os.path.join(self.save_path, scene_id + '_' + str(image_id), scene_id + '_' + str(image_id) + '.ply')
+            result_mesh.export(mesh_path)
+            result_path = os.path.join(self.save_path, scene_id + '_' + str(image_id), scene_id + '_' + str(image_id) + '_voxel.npz')
+            np.savez(result_path, weights=weights.detach().cpu().numpy(), origin=self.origin)
+            i += 1
+        '''
+            
         
         detection_loss = self.fcaf3d_detection(inputs, recon_result['scene_tsdf_004'], test=False)        
                 
@@ -448,7 +486,7 @@ class AtlasRayMarching(nn.Module):
     def forward_test(self, inputs):       
         self.voxel_dim = self.voxel_dim_test
         self.initialize_volume()
-
+        scene_id = inputs['scene'][0]
         image = inputs['imgs']
         projection = inputs['projection']
         images = image.transpose(0,1)
@@ -462,13 +500,23 @@ class AtlasRayMarching(nn.Module):
                 self.aggregate_2d_features(projection, feature=feature)
             self.clear_3d_features()
         else:
-            for projection, image in zip(projections, images):
-                self.aggregate_2d_features(projection, image=image)
+            features = []
+            for image in images:
+                image = self.normalizer(image)
+                feature = self.backbone2d(image)
+                features.append(feature)
+            features = torch.stack(features, dim=0)
+            for projection, feature in zip(projections, features):
+                self.aggregate_2d_features(projection, feature)
             self.clear_3d_features()
         
         # run 3d cnn
         recon_result, recon_loss = self.atlas_reconstruction(inputs['tsdf_list'])
         
+        #ray marching
+        self.aggregate_2d_features_ray_marching(projections, features, recon_result['scene_tsdf_004'])
+        
+
 
         
         detection_loss = self.fcaf3d_detection(inputs, recon_result['scene_tsdf_004'], test=True)        
@@ -492,6 +540,10 @@ class AtlasRayMarching(nn.Module):
             mesh_pred.export(os.path.join(self.save_path, scene_id, scene_id + '.ply'))
             #kebab = result['kebab'].get_mesh()
             #kebab.export(os.path.join(self.save_path, scene_id, scene_id + '_gt.ply'))
+        
+        
+        self.save_middle_result(scene_id, result['scene_tsdf'], self.volume_detection[0], self.valid_detection[0])
+
         
        # self.test_transform_valid(inputs)
         return [{}]
@@ -783,6 +835,45 @@ class AtlasRayMarching(nn.Module):
         return volumes, grid_weights
         
         
+    def save_middle_result(self, scene_id, tsdf, middle, valid):
+        '''
+        Save TSDF with real coordinates
+        '''
+        import open3d as o3d
+        save_path_middle = '/data1/sgl/ray_marching_middle'
+        visualize_path_sift = '/data1/sgl/ray_marching_pc'
+        
+        C, X, Y, Z = middle.shape
+        origin = tsdf.origin.detach().cpu() #1 * 3
+        voxel_size = tsdf.voxel_size
+        x_coord, y_coord, z_coord = torch.meshgrid(torch.arange(X), torch.arange(Y), torch.arange(Z))  #X * Y * Z
+        coords = torch.stack((x_coord, y_coord, z_coord), dim=3).view(X * Y * Z, 3).float() #(X * Y * Z) * 3
+        coords = coords * self.voxel_size + origin
+        
+        mask = ((tsdf.tsdf_vol < 0.999) & (tsdf.tsdf_vol > -0.999)).view(X * Y * Z)
+        valid = valid.view(X * Y * Z) & mask
+        valid = valid.detach().cpu()
+        middle_feature = middle.float().permute(1, 2, 3, 0).view(X * Y * Z, C).detach().cpu() #(X * Y * Z) * 32
+        middle_feature = torch.cat((coords, middle_feature), dim=1) #(X * Y * Z) * 35
+        
+        
+        selected_middles = []
+        for i in range(C + 3):
+            selected_middle = torch.masked_select(middle_feature[:, i], valid)
+            selected_middles.append(selected_middle)
+        selected_middles = torch.stack(selected_middles, dim=1).numpy() #N * 35
+        
+        save_place_middle = os.path.join(save_path_middle, scene_id + '_vert.npy')
+        visualize_place = os.path.join(visualize_path_sift, scene_id + '_sift.ply')
+        
+        np.save(save_place_middle, selected_middles)
+        
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(selected_middles[:, 0:3])
+        o3d.io.write_point_cloud(visualize_place, pcd)
+        
+        
+        kebab=0
 
     
 

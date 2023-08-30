@@ -218,11 +218,76 @@ def visualize_ray(mesh_path, ray_path, save_path, mode='weight'):
         scene = trimesh.util.concatenate(scene.dump())
         scene.export(current_save_path)
 
+def visualize_voxels(mesh_path, ray_path, save_path):
+    """
+    Visualize all the voxels useful in a frame
+    
+    Args:
+        mesh_path [str]: [the path of the original mesh]
+        ray_path [str]: [the path of the ray info]
+        save_path [str]: [the saving path]
+    """
+    colors = np.multiply([
+        plt.cm.get_cmap('gist_ncar', 37)((i * 7 + 5) % 37)[:3] for i in range(37)
+    ], 255).astype(np.uint8).tolist()
+    data = np.load(ray_path)
+    weights = data['weights']
+    origin = data['origin']
+
+    B, _, X, Y, Z = weights.shape
+    all_edges = []
+    all_colors = []
+    voxel_ids = np.squeeze(np.nonzero((weights[0, 0] > 0))).transpose(1, 0)
+    for i in range(len(voxel_ids)):
+        edges = np.squeeze(get_voxel_edges(voxel_ids[i], origin, 0.04))
+        all_edges.append(edges)
+        color = colors[0]
+        all_colors.extend([color] * 12)
+
+
+    if len(all_edges) > 0:
+        all_edges = np.concatenate(all_edges, axis=0)
+
+    original_trimesh = init_scene(mesh_path, None)
+    scene = trimesh.scene.Scene()
+    scene.add_geometry(original_trimesh)
+
+    rad = 0.005
+    res = 16
+    for i in range(len(all_edges)):
+        source = all_edges[i][0]
+        target = all_edges[i][1]
+        edge_color = all_colors[i]
+        
+        # compute line
+        vector = target - source 
+        M = trimesh.geometry.align_vectors([0,0,1], vector, False)
+        vector = target - source # compute again since align_vectors modifies vec in-place!
+        M[:3,3] = 0.5 * source + 0.5 * target
+        height = np.sqrt(np.dot(vector, vector))
+        edge_mesh = trimesh.creation.cylinder(radius=rad, height=height, sections=res, transform=M)
+        edge_vertexs = np.array(edge_mesh.vertices).tolist()
+        edge_colors = [edge_color] * len(edge_vertexs)
+        edge_faces = np.array(edge_mesh.faces).tolist()
+        edge_mesh = trimesh.Trimesh(vertices=edge_vertexs, vertex_colors=edge_colors, faces=edge_faces)
+        scene.add_geometry(edge_mesh)
+
+
+    scene = trimesh.util.concatenate(scene.dump())
+    scene.export(save_path)
+
 
 if __name__ == "__main__":
-    
+    '''
     mesh_path = '/home/sgl/work_dirs_atlas/atlas_ray_marching/results/scene0000_00_331/scene0000_00_331.ply'
     ray_path = '/home/sgl/work_dirs_atlas/atlas_ray_marching/results/scene0000_00_331/scene0000_00_331.npz'
     save_path = '/home/sgl/work_dirs_atlas/atlas_ray_marching/results/scene0000_00_331/scene0000_00_331_'
     visualize_ray(mesh_path, ray_path, save_path)
     visualize_ray(mesh_path, ray_path, save_path, mode='tsdf')
+    '''
+
+    mesh_path = '/home/sgl/work_dirs_atlas/atlas_ray_marching/results/scene0000_00_331/scene0000_00_331.ply'
+    ray_path = '/home/sgl/work_dirs_atlas/atlas_ray_marching/results/scene0000_00_331/scene0000_00_331_voxel.npz'
+    save_path = '/home/sgl/work_dirs_atlas/atlas_ray_marching/results/scene0000_00_331/scene0000_00_331_voxel.ply'
+    visualize_voxels(mesh_path, ray_path, save_path)
+    

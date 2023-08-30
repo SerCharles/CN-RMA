@@ -266,19 +266,20 @@ def main():
     scene_ids = load_scene_ids(args.data_path, 'val')
     #scene_ids = ['scene0005_00', 'scene0041_00', 'scene0106_00', 'scene0158_00', 'scene0344_00','scene0065_00', 'scene0103_00', 'scene0137_02', 'scene0160_00', 'scene0258_00']
     #scene_ids = ['scene0011_00', 'scene0304_00', 'scene0568_00']
-    scene_ids = ['scene0011_00', 'scene0011_01', 'scene0015_00']
+    #scene_ids = ['scene0011_00', 'scene0011_01', 'scene0015_00']
+    scene_ids = ['scene0000_00']
     #print(scene_ids)
     scene_ids.sort()
     for scene_id in scene_ids:
         if not os.path.exists(os.path.join(args.save_path, scene_id)):
             continue
-        
+        '''
         mesh_path = os.path.join(args.save_path, scene_id, scene_id + '_features.ply')
         bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_gt.npz')
         save_path = os.path.join(args.save_path, scene_id, scene_id + '_fc.ply')
         meta_path = None
         visualize_boxs(mesh_path, meta_path, bbox_path, save_path, type='point')
-        
+        '''
         '''
         meta_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '.txt')
         mesh_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '_vh_clean_2.ply')
@@ -293,14 +294,14 @@ def main():
         generate_gt(gt_path, gt_bbox_path)
         visualize_boxs(mesh_path,  meta_path, gt_bbox_path, gt_save_path, type='mesh')
         '''
-        '''
+        
         mesh_path = os.path.join(args.save_path, scene_id, scene_id + '_sift.ply')
         bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_gt.npz')
         save_path = os.path.join(args.save_path, scene_id, scene_id + '_fc.ply')
         meta_path = None
         visualize_boxs(mesh_path, meta_path, bbox_path, save_path, type='point')
-        '''
-        print('processed ' + scene_id)
+        
+
 
 if __name__ == "__main__":
     main()
