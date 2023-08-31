@@ -259,15 +259,15 @@ def generate_gt(box_path, save_path):
 def main():
     parser = argparse.ArgumentParser(description="NeuralRecon ScanNet Testing")
     parser.add_argument("--data_path", type=str, default='/data1/sgl/ScanNet')
-    #parser.add_argument("--save_path", type=str, default='/home/sgl/work_dirs_atlas/test_finetune/results')
-    parser.add_argument("--save_path", type=str, default='/data1/sgl/depth_data')
+    parser.add_argument("--save_path", type=str, default='/home/sgl/work_dirs_atlas/atlas_ray_marching/results')
+    #parser.add_argument("--save_path", type=str, default='/data1/sgl/ray_marching_pc')
 
     args = parser.parse_args()
     scene_ids = load_scene_ids(args.data_path, 'val')
     #scene_ids = ['scene0005_00', 'scene0041_00', 'scene0106_00', 'scene0158_00', 'scene0344_00','scene0065_00', 'scene0103_00', 'scene0137_02', 'scene0160_00', 'scene0258_00']
     #scene_ids = ['scene0011_00', 'scene0304_00', 'scene0568_00']
     #scene_ids = ['scene0011_00', 'scene0011_01', 'scene0015_00']
-    scene_ids = ['scene0000_00']
+    scene_ids = ['scene0011_00']
     #print(scene_ids)
     scene_ids.sort()
     for scene_id in scene_ids:
@@ -280,13 +280,13 @@ def main():
         meta_path = None
         visualize_boxs(mesh_path, meta_path, bbox_path, save_path, type='point')
         '''
-        '''
+        
         meta_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '.txt')
         mesh_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '_vh_clean_2.ply')
         bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_atlas_bbox.npz')
         save_path = os.path.join(args.save_path, scene_id, scene_id + '_atlas_bbox.ply')
         visualize_boxs(mesh_path, meta_path, bbox_path, save_path, type='mesh')
-        '''
+        
         '''
         gt_path = os.path.join(args.data_path, 'scannet_instance_data', scene_id + '_aligned_bbox.npy')
         gt_bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_gt.npz')
@@ -294,12 +294,16 @@ def main():
         generate_gt(gt_path, gt_bbox_path)
         visualize_boxs(mesh_path,  meta_path, gt_bbox_path, gt_save_path, type='mesh')
         '''
-        
-        mesh_path = os.path.join(args.save_path, scene_id, scene_id + '_sift.ply')
+        '''
+        mesh_path = os.path.join(args.save_path, scene_id, scene_id + '_vert_original.ply')
+        ray_path = os.path.join(args.save_path, scene_id, scene_id + '_vert_ray.ply')
         bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_gt.npz')
         save_path = os.path.join(args.save_path, scene_id, scene_id + '_fc.ply')
+        save_path_ray = os.path.join(args.save_path, scene_id, scene_id + '_ray.ply')
         meta_path = None
         visualize_boxs(mesh_path, meta_path, bbox_path, save_path, type='point')
+        visualize_boxs(ray_path, meta_path, bbox_path, save_path_ray, type='point')
+        '''
         
 
 
