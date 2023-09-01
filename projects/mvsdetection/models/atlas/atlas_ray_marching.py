@@ -550,7 +550,7 @@ class AtlasRayMarching(nn.Module):
             #kebab.export(os.path.join(self.save_path, scene_id, scene_id + '_gt.ply'))
         
         
-        #self.save_middle_result(scene_id, result['scene_tsdf'], self.volume[0], self.volume_detection[0], self.valid_detection[0])
+        self.save_middle_result(scene_id, result['scene_tsdf'], self.volume[0], self.volume_detection[0], self.valid_detection[0])
 
         
         #self.test_transform_valid(inputs)
@@ -733,104 +733,96 @@ class AtlasRayMarching(nn.Module):
                     Each voxel contains a positive weight if it projects to a pixel
                     and 0 otherwise 
         """
+    
         X, Y, Z = self.voxel_dim
         B, C, H, W = features.size()
         N = grids
         device = features.device
-        
-        with torch.no_grad():
-            #get o, d, t
-            origin_extend = self.origin.view(B, 3, 1).repeat(1, 1, H * W).to(device) #B * 3 * (H * W)
-            o, d = get_ray_parameter(projection, features) #B * 3 * (H * W)
+        origin_extend = self.origin.view(B, 3, 1).repeat(1, 1, H * W).to(device) #B * 3 * (H * W)
+        o, d = get_ray_parameter(projection, features) #B * 3 * (H * W)
     
+        #get the t
+        t_max = sqrt(X ** 2 + Y ** 2 + Z ** 2) * self.voxel_size 
+        t_one = t_max / N
+        t = []
+        for j in range(grids):
+            current_t = t_one * j 
+            current_ts = torch.ones(B, 3, H * W, 1, dtype=torch.float32) * current_t
+            t.append(current_ts)
+        t = torch.concat(t, dim=3).view(B, 3, H * W * N).to(device) #B * 3 * (H * W * N)
         
-            t_max = sqrt(X ** 2 + Y ** 2 + Z ** 2) * self.voxel_size 
-            t_one = t_max / N
-            t = []
-            for j in range(grids):
-                current_t = t_one * j 
-                current_ts = torch.ones(B, 3, H * W, 1, dtype=torch.float32) * current_t
-                t.append(current_ts)
-            t = torch.concat(t, dim=3).view(B, 3, H * W * N).to(device) #B * 3 * (H * W * N)
-        
-            #get voxel ids
-            d = d.view(B, 3, H * W, 1).repeat(1, 1, 1, N).view(B, 3, H * W * N) #B * 3 * (H * W * N)
-            o = o.view(B, 3, H * W, 1).repeat(1, 1, 1, N).view(B, 3, H * W * N) #B * 3 * (H * W * N)
-            origin_extend = origin_extend.view(B, 3, H * W, 1).repeat(1, 1, 1, N).view(B, 3, H * W * N) #B * 3 * (H * W * N)
-            place = o + d * t
-            voxel_id = ((place - origin_extend) / self.voxel_size).round().type(torch.long) #B * 3 * (H * W * N)
-            valid = (voxel_id[:, 0, :] >= 0) & (voxel_id[:, 0, :] < X) & \
-                    (voxel_id[:, 1, :] >= 0) & (voxel_id[:, 1, :] < Y) & \
-                    (voxel_id[:, 2, :] >= 0) & (voxel_id[:, 2, :] < Z) #B * (H * W * N)
-            voxel_id[:, 0, :][valid == 0] = 0
-            voxel_id[:, 1, :][valid == 0] = 0
-            voxel_id[:, 2, :][valid == 0] = 0
+        #get voxel ids
+        d = d.view(B, 3, H * W, 1).repeat(1, 1, 1, N).view(B, 3, H * W * N) #B * 3 * (H * W * N)
+        o = o.view(B, 3, H * W, 1).repeat(1, 1, 1, N).view(B, 3, H * W * N) #B * 3 * (H * W * N)
+        origin_extend = origin_extend.view(B, 3, H * W, 1).repeat(1, 1, 1, N).view(B, 3, H * W * N) #B * 3 * (H * W * N)
+        place = o + d * t
+        voxel_id = ((place - origin_extend) / self.voxel_size).round().type(torch.long) #B * 3 * (H * W * N)
+        valid = (voxel_id[:, 0, :] >= 0) & (voxel_id[:, 0, :] < X) & \
+                (voxel_id[:, 1, :] >= 0) & (voxel_id[:, 1, :] < Y) & \
+                (voxel_id[:, 2, :] >= 0) & (voxel_id[:, 2, :] < Z) #B * (H * W * N)
+        voxel_id[:, 0, :][valid == 0] = 0
+        voxel_id[:, 1, :][valid == 0] = 0
+        voxel_id[:, 2, :][valid == 0] = 0
 
     
-            #get tsdf values
-            tsdf_results = []
-            for b in range(B):
-                tsdf_result = tsdf[b, 0, voxel_id[b, 0, :], voxel_id[b, 1, :], voxel_id[b, 2, :]]
-                tsdf_results.append(tsdf_result)
-            tsdf_results = torch.stack(tsdf_results, dim=0) #B * (H * W * N)
-            tsdf_results[valid == 0] = 1.0 #mask bad tsdf
-            tsdf_results = tsdf_results.view(B, H, W, N) #B * H * W * N 
-    
-            o = o.view(B, 3, H, W, N)
-            d = d.view(B, 3, H, W, N)
-            voxel_id = voxel_id.view(B, 3, H, W, N)
-            valid = valid.view(B, H, W, N)
-        
-            #get the weights of each grids based on NEUS
-            #alpha_i = max((sigmoid(TSDF_i) - sigmoid(TSDF_i+1)) / sigmoid(TSDF_i), 0)
-            #T_i = (1 - alpha_0) * (1 - alpha_1) * ...... * (1 - alpha_i-1)
-            sigmoid_tsdf = torch.sigmoid(-tsdf_results)
-            sigmoid_tsdf_next = torch.cat((sigmoid_tsdf[:, :, :, 1:], sigmoid_tsdf[:, :, :, -1:]), dim=3)
-            alpha = torch.clamp((sigmoid_tsdf - sigmoid_tsdf_next) / sigmoid_tsdf, min=0) #B * H * W * N
-            T_next = torch.cumprod(1 - alpha, dim=3)
-            one = torch.ones((B, H, W, 1), dtype=torch.float32).to(device)
-            T = torch.cat((one, T_next[:, :, :, :-1]), dim=3)
-            weights = T * alpha
-            '''
-            #TODO：需要尝试把weight对于每条射线归一化，总和为1
-            weights = weights / torch.sum(weights, dim=3).view(B, H, W, 1).repeat(1, 1, 1, N)
-            '''
-            valid_grid = weights >= weight_threshold
-            valid_final = valid & valid_grid
-            weights = weights * valid_final
-            '''
-            #可视化方案：把voxel id转化成实际位置，可视化显示出来
-            return o, d, voxel_id, valid_final, tsdf_results, weights 
-            '''
-        
-        
-            #select useful weights
-            flatten_valid = valid_final.view(B, H * W * N)
-            voxel_id = voxel_id.view(B, 3, H * W * N)
-            weights = weights.view(B, 1, H * W * N)
-            useful_ids = []
-            useful_weights = []
-            useful_indices = []
-            
-            for b in range(B):
-                useful_id = torch.squeeze(torch.nonzero(flatten_valid[b]))
-                useful_weight = weights[b, :, useful_id].permute(1, 0) #M * 1
-                useful_index = voxel_id[b, :, useful_id].permute(1, 0) #M * 3
-                useful_ids.append(useful_id)
-                useful_weights.append(useful_weight)
-                useful_indices.append(useful_index)
-        
-        
-        weighted_features = features.view(B, C, H, W, 1).repeat(1, 1, 1, 1, N).view(B, C, H * W * N)
-        useful_features = []
+        #get tsdf values
+        tsdf_results = []
         for b in range(B):
-            useful_id = useful_ids[b]
+            tsdf_result = tsdf[b, 0, voxel_id[b, 0, :], voxel_id[b, 1, :], voxel_id[b, 2, :]]
+            tsdf_results.append(tsdf_result)
+        tsdf_results = torch.stack(tsdf_results, dim=0) #B * (H * W * N)
+        tsdf_results[valid == 0] = 1.0 #mask bad tsdf
+        tsdf_results = tsdf_results.view(B, H, W, N) #B * H * W * N 
+    
+        o = o.view(B, 3, H, W, N)
+        d = d.view(B, 3, H, W, N)
+        voxel_id = voxel_id.view(B, 3, H, W, N)
+        valid = valid.view(B, H, W, N)
+        
+        #get the weights of each grids based on NEUS
+        #alpha_i = max((sigmoid(TSDF_i) - sigmoid(TSDF_i+1)) / sigmoid(TSDF_i), 0)
+        #T_i = (1 - alpha_0) * (1 - alpha_1) * ...... * (1 - alpha_i-1)
+        sigmoid_tsdf = torch.sigmoid(-tsdf_results)
+        sigmoid_tsdf_next = torch.cat((sigmoid_tsdf[:, :, :, 1:], sigmoid_tsdf[:, :, :, -1:]), dim=3)
+        alpha = torch.clamp((sigmoid_tsdf - sigmoid_tsdf_next) / sigmoid_tsdf, min=0) #B * H * W * N
+        T_next = torch.cumprod(1 - alpha, dim=3)
+        one = torch.ones((B, H, W, 1), dtype=torch.float32).to(device)
+        T = torch.cat((one, T_next[:, :, :, :-1]), dim=3)
+        weights = T * alpha
+        
+        '''
+        #TODO：需要尝试把weight对于每条射线归一化，总和为1
+        weights = weights / torch.sum(weights, dim=3).view(B, H, W, 1).repeat(1, 1, 1, N)
+        #可视化方案：把voxel id转化成实际位置，可视化显示出来
+        return o, d, voxel_id, valid, tsdf_results, weights 
+        '''
+        
+        #get the features of each grids, add weights
+        weighted_features = features.view(B, C, H, W, 1).repeat(1, 1, 1, 1, N)
+        valid_grid = weights >= weight_threshold
+        valid_final = valid & valid_grid
+        weights = weights * valid_final
+        weights_repeat = weights.view(B, 1, H, W, N).repeat(1, C, 1, 1, 1)
+        weighted_features = weighted_features * weights_repeat #B * C * H * W * N
+        
+        #select useful features
+        flatten_valid = valid_final.view(B, H * W * N)
+        weighted_features = weighted_features.view(B, C, H * W * N)
+        voxel_id = voxel_id.view(B, 3, H * W * N)
+        weights = weights.view(B, 1, H * W * N)
+        useful_features = []
+        useful_weights = []
+        useful_indices = []
+        for b in range(B):
+            useful_id = torch.squeeze(torch.nonzero(flatten_valid[b]))
             useful_feature = weighted_features[b, :, useful_id].permute(1, 0) #M * C
-            useful_feature = useful_feature * useful_weights[b].repeat(1, C) #M * C
+            useful_weight = weights[b, :, useful_id].permute(1, 0) #M * 1
+            useful_index = voxel_id[b, :, useful_id].permute(1, 0) #M * 3
             useful_features.append(useful_feature)
-
-
-                
+            useful_weights.append(useful_weight)
+            useful_indices.append(useful_index)
+        
+        
         #allocate the weights to voxels
         #TODO：需要尝试排序weight，保证多个pixel的voxel重复的时候，保留weight最大值
         volumes = []
@@ -853,8 +845,10 @@ class AtlasRayMarching(nn.Module):
         Save TSDF with real coordinates
         '''
         import open3d as o3d
-        save_path_middle = '/data1/sgl/ray_marching_middle'
-        visualize_path_sift = '/data1/sgl/ray_marching_pc'
+        save_path_middle = '/data1/shenguanlin/ray_marching_middle'
+        visualize_path_sift = '/data1/shenguanlin/ray_marching_pc/results'
+        if not os.path.exists(os.path.join(visualize_path_sift, scene_id)):
+            os.makedirs(os.path.join(visualize_path_sift, scene_id))
         
         C, X, Y, Z = middle_ray.shape
         origin = tsdf.origin.detach().cpu() #1 * 3
@@ -884,26 +878,26 @@ class AtlasRayMarching(nn.Module):
             selected_ray = torch.masked_select(ray_feature[:, i], valid_ray)
             selected_rays.append(selected_ray)
         selected_rays = torch.stack(selected_rays, dim=1).numpy() #N * 35
-        '''
+        
+        
         save_place_middle = os.path.join(save_path_middle, scene_id + '_vert_original.npy')
-        visualize_place = os.path.join(visualize_path_sift, scene_id + '_vert_original.ply')
+        visualize_place = os.path.join(visualize_path_sift, scene_id, scene_id + '_vert_original.ply')
 
-        np.save(save_place_middle, selected_middles)
+        #np.save(save_place_middle, selected_middles)
     
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(selected_middles[:, 0:3])
         o3d.io.write_point_cloud(visualize_place, pcd)
-        '''
         
-        save_place_ray = os.path.join(save_path_middle, scene_id + '_vert_ray.npy')
-        visualize_place_ray = os.path.join(visualize_path_sift, scene_id + '_vert_ray.ply')
-
+        
+        save_place_ray = os.path.join(save_path_middle, scene_id + '_vert.npy')
+        
+        visualize_place_ray = os.path.join(visualize_path_sift, scene_id, scene_id + '_vert_ray.ply')
         np.save(save_place_ray, selected_rays)
-        '''
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(selected_rays[:, 0:3])
         o3d.io.write_point_cloud(visualize_place_ray, pcd)
-        '''
+        
         
         kebab=0
 
