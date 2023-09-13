@@ -77,6 +77,6 @@ def evaluate_bbox(data_path, result_path):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_path", type=str, default='/data1/sgl/ScanNet')
-    parser.add_argument("--result_path", type=str, default='/data1/shenguanlin/gt_04/results')
+    parser.add_argument("--result_path", type=str, default='/home/sgl/work_dirs_atlas/atlas_ray_marching/results')
     args = parser.parse_args()
     evaluate_bbox(args.data_path, args.result_path)

@@ -11,7 +11,7 @@ VOXEL_SIZE_FCAF3D = 0.01
 N_SCALES = 3
 VOXEL_DIM_TRAIN = [192, 192, 80]
 VOXEL_DIM_TEST = [256, 256, 96]
-NUM_FRAMES_TRAIN = 35
+NUM_FRAMES_TRAIN = 30
 #NUM_FRAMES_TEST = 500
 NUM_FRAMES_TEST = 50
 USE_BATCHNORM_TRAIN = True
@@ -30,8 +30,10 @@ dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = '/home/sgl/work_dirs_atlas/atlas_ray_marching'
 save_path = work_dir + '/results'
-load_from = '/home/sgl/work_dirs_atlas/ray_marching_base.pth'
-resume_from = None
+#load_from = '/home/sgl/work_dirs_atlas/ray_marching_base.pth'
+#resume_from = None
+load_from = None 
+resume_from = '/home/sgl/work_dirs_atlas/atlas_ray_marching/epoch_90.pth'
 workflow = [('train', 1)]
 total_epochs = 120
 evaluation = dict(interval=3000, voxel_size=VOXEL_SIZE, save_path=work_dir+'/results')

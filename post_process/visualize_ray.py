@@ -172,11 +172,16 @@ def visualize_ray(mesh_path, ray_path, save_path, mode='weight'):
             if mode == 'tsdf' and abs(tsdf) <= threshold and valid:
                 edges = get_voxel_edges(voxel_id, origin, 0.04)
                 all_edges.append(edges)
-                color = colors[4]
+                if tsdf >= 0:
+                    color = colors[0]
+                else:
+                    color = colors[1]
+                '''
                 for jj in range(len(color_tsdf_thresholds)):
-                    if tsdf > color_tsdf_thresholds[jj]:
+                    if abs(tsdf) > color_tsdf_thresholds[jj]:
                         color = colors[jj]
                         break
+                '''
                 all_colors.extend([color] * 12)
             elif mode == 'weight' and weight >= threshold and valid:
                 edges = get_voxel_edges(voxel_id, origin, 0.04)
@@ -278,16 +283,14 @@ def visualize_voxels(mesh_path, ray_path, save_path):
 
 
 if __name__ == "__main__":
-    
-    mesh_path = '/home/sgl/work_dirs_atlas/atlas_ray_marching/results/scene0000_00_331/scene0000_00_331.ply'
-    ray_path = '/home/sgl/work_dirs_atlas/atlas_ray_marching/results/scene0000_00_331/scene0000_00_331.npz'
-    save_path = '/home/sgl/work_dirs_atlas/atlas_ray_marching/results/scene0000_00_331/scene0000_00_331_'
+    scene_id = 'scene0588_01'
+    image_id = 81
+    save_dir = '/home/sgl/work_dirs_atlas/atlas_ray_marching/results'
+    name = scene_id + '_' + str(image_id)
+    mesh_path = os.path.join(save_dir, name, name + '.ply')
+    ray_path = os.path.join(save_dir, name, name + '.npz')
+    save_path = os.path.join(save_dir, name, name + '_')
+
     visualize_ray(mesh_path, ray_path, save_path)
     visualize_ray(mesh_path, ray_path, save_path, mode='tsdf')
-    '''
-
-    mesh_path = '/home/sgl/work_dirs_atlas/atlas_ray_marching/results/scene0000_00_331/scene0000_00_331.ply'
-    ray_path = '/home/sgl/work_dirs_atlas/atlas_ray_marching/results/scene0000_00_331/scene0000_00_331_voxel.npz'
-    save_path = '/home/sgl/work_dirs_atlas/atlas_ray_marching/results/scene0000_00_331/scene0000_00_331_voxel.ply'
-    visualize_voxels(mesh_path, ray_path, save_path)
-    '''
+    

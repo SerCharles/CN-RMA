@@ -236,12 +236,17 @@ class AtlasDetection(nn.Module):
         Switch the volume to sparse mode, including data augmentation
         
         Args:
-            inputs [dict]: [the dict of all the inputs]
+            feature [torch float32 array], [B * C * X * Y * Z]: [the 3D voxel feature]
+            valid [torch bool array], [B * 1 * X * Y * Z]: [the valid of 3D voxel feature]
+            gt_bboxes [array of torch float array], [M * 7 each]: [the gt bboxes, M is the number of gt bboxes]
+            offsets [array of torch float array], [3 each]: [the offsets of each scene]
             tsdf [torch float32 array], [B * 1 * X * Y * Z]: [the predicted tsdf volume]
             test [bool]: [whether in test mode]
         
         Returns:
+            sparse_coords [list of torch float32 array], [N * 3]: [the list of sparse coords, N is the number of valid points]
             sparse_features [list of torch float32 array], [N * C]: [the list of sparse feature, N is the number of valid points]
+            new_gt_bboxes [array of torch float array], [M * 7 each]: [the gt bboxes, M is the number of gt bboxes]
         '''
         #get coords
         B, C, X, Y, Z = feature.shape 

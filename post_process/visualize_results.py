@@ -265,9 +265,9 @@ def main():
     args = parser.parse_args()
     scene_ids = load_scene_ids(args.data_path, 'val')
     #scene_ids = ['scene0005_00', 'scene0041_00', 'scene0106_00', 'scene0158_00', 'scene0344_00','scene0065_00', 'scene0103_00', 'scene0137_02', 'scene0160_00', 'scene0258_00']
-    #scene_ids = ['scene0011_00', 'scene0304_00', 'scene0568_00']
+    scene_ids = ['scene0011_00', 'scene0304_00', 'scene0568_00']
     #scene_ids = ['scene0011_00', 'scene0011_01', 'scene0015_00']
-    scene_ids = ['scene0011_00']
+    #scene_ids = ['scene0011_00']
     #print(scene_ids)
     scene_ids.sort()
     for scene_id in scene_ids:
