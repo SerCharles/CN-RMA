@@ -11,7 +11,7 @@ VOXEL_SIZE_FCAF3D = 0.01
 N_SCALES = 3
 VOXEL_DIM_TRAIN = [192, 192, 80]
 VOXEL_DIM_TEST = [256, 256, 96]
-NUM_FRAMES_TRAIN = 30
+NUM_FRAMES_TRAIN = 40
 #NUM_FRAMES_TEST = 500
 NUM_FRAMES_TEST = 50
 USE_BATCHNORM_TRAIN = True
@@ -28,12 +28,10 @@ lr_config = dict(policy='step', warmup=None, step=[80, 110])
 
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = '/home/sgl/work_dirs_atlas/atlas_ray_marching'
+work_dir = '/home/sgl/work_dirs_atlas/atlas_ray_marching_points'
 save_path = work_dir + '/results'
-#load_from = '/home/sgl/work_dirs_atlas/ray_marching_base.pth'
-#resume_from = None
-load_from = None 
-resume_from = '/home/sgl/work_dirs_atlas/atlas_ray_marching/epoch_90.pth'
+load_from = '/home/sgl/work_dirs_atlas/ray_marching_base.pth'
+resume_from = None
 workflow = [('train', 1)]
 total_epochs = 120
 evaluation = dict(interval=3000, voxel_size=VOXEL_SIZE, save_path=work_dir+'/results')
@@ -68,7 +66,7 @@ test_pipeline = [
 data = dict(
     samples_per_gpu=1,
     workers_per_gpu=1, 
-    train_dataloader=dict(shuffle=True),
+    train_dataloader=dict(shuffle=False),
     test_dataloader=dict(shuffle=False),
     train=dict(
         type='AtlasScanNetDataset',
@@ -120,6 +118,8 @@ model = dict(
     use_batchnorm_test=USE_BATCHNORM_TEST,
     use_tsdf=USE_TSDF,
     save_path=save_path,
+    middle_type='points',
+    ray_marching_type='neus',
     backbone2d=dict(
         type='FPNDetectron',
         bottom_up_cfg=dict(

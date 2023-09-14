@@ -271,3 +271,19 @@ def sample_mask(mask, max_points=None):
     new_mask[indice] = 1 
     new_mask = torch.tensor(new_mask).view(1, X, Y, Z).to(device)
     return new_mask
+
+@torch.no_grad()
+def sample_points(points, max_points=None):
+    assert max_points != None
+    N, _ = points.shape
+    device = points.device
+    mask = np.ones(N, dtype=np.bool)
+    indice = np.nonzero(mask)[0]
+    if N > max_points:
+        choices = np.random.choice(N, max_points, replace=False)
+        indice = indice[choices]
+    new_mask = np.zeros_like(mask)
+    new_mask[indice] = 1
+    new_mask = torch.tensor(new_mask).view(N).to(device)
+    return new_mask
+    

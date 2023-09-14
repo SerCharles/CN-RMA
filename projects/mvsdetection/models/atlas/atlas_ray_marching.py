@@ -12,7 +12,7 @@ import MinkowskiEngine as ME
 from mmdet3d.core import bbox3d2result
 from mmcv.runner import auto_fp16
 from projects.mvsdetection.datasets.tsdf import TSDF, coordinates
-from projects.mvsdetection.datasets.pipelines.fcaf3d_transforms import TransformFeaturesBBoxes, sample_mask
+from projects.mvsdetection.datasets.pipelines.fcaf3d_transforms import TransformFeaturesBBoxes, sample_mask, sample_points
 
 def backproject(voxel_dim, voxel_size, origin, projection, features):
     """ Takes 2d features and fills them along rays in a 3d volume
@@ -156,7 +156,9 @@ class AtlasRayMarching(nn.Module):
                  max_points=None,
                  train_cfg=None, 
                  test_cfg=None, 
-                 pretrained=None):
+                 pretrained=None, 
+                 middle_type='points',
+                 ray_marching_type='neus'):
         super(AtlasRayMarching, self).__init__()
         # networks
         self.fp16_enabled = False
@@ -195,6 +197,9 @@ class AtlasRayMarching(nn.Module):
         self.origin = torch.tensor(origin).view(1,3)
         self.backbone2d_stride = backbone2d_stride
         self.initialize_volume()
+        
+        self.middle_type = middle_type
+        self.ray_marching_type = ray_marching_type
                 
 
     def initialize_volume(self):
@@ -259,7 +264,7 @@ class AtlasRayMarching(nn.Module):
         self.volume = self.volume.transpose(0,1)
         self.valid = self.valid > 0
         
-    def aggregate_2d_features_ray_marching_old(self, projections, features, tsdf, scene_id, image_ids):
+    def aggregate_2d_features_ray_marching_voxels(self, projections, features, tsdf):
         """ Backprojects image features into 3D using ray marching and get the final result
 
         Args:
@@ -268,49 +273,22 @@ class AtlasRayMarching(nn.Module):
 
         Feature volume is accumulated into self.volume and self.valid
         """
-        i = 0
         for projection, feature in zip(projections, features):
             projection = projection.clone()
             projection[:,:2,:] = projection[:,:2,:] / self.backbone2d_stride
-            try:
-                #volume, weights, whether_visualize, o, d, voxel_id, valid, tsdf_results, weights_visualize = self.ray_projection_old(projection, feature, tsdf)
-                volume, weights = self.ray_projection_old(projection, feature, tsdf)
-                self.volume_detection = self.volume_detection + volume 
-                self.weight_detection = self.weight_detection + weights
-            except:
-                whether_visualize = True 
-                print('Bad volume and weights!')
-            
-            '''
-            if whether_visualize:
-                image_id = image_ids[i]
-                result_tsdf = TSDF(self.voxel_size, self.origin, tsdf[0].squeeze(0))
-                result_mesh = result_tsdf.get_mesh()
-                if not os.path.exists(os.path.join(self.save_path, scene_id + '_' + str(image_id))):
-                    os.makedirs(os.path.join(self.save_path, scene_id + '_' + str(image_id)))
-                mesh_path = os.path.join(self.save_path, scene_id + '_' + str(image_id), scene_id + '_' + str(image_id) + '.ply')
-                result_mesh.export(mesh_path)
-                result_path = os.path.join(self.save_path, scene_id + '_' + str(image_id), scene_id + '_' + str(image_id) + '.npz')
-                np.savez(result_path, o=o.detach().cpu().numpy(), d=d.detach().cpu().numpy(), voxel_id=voxel_id.detach().cpu().numpy(), valid=valid.detach().cpu().numpy(), tsdf_results=tsdf_results.detach().cpu().numpy(), origin=self.origin, weights=weights_visualize.detach().cpu().numpy())
-            
-                tsdf_path = os.path.join(self.save_path, scene_id + '_' + str(image_id), scene_id + '_' + str(image_id) + '_tsdf.npz')
-                result_tsdf.save(tsdf_path)
-            '''
-            
-            i += 1
+            volume, weights = self.ray_projection_voxels(projection, feature, tsdf)
+            self.volume_detection = self.volume_detection + volume 
+            self.weight_detection = self.weight_detection + weights
         
-        
-
-        self.volume_detection = self.volume_detection / self.weight_detection
-
         # remove nans (where self.weight_detection == 0)
+        self.volume_detection = self.volume_detection / self.weight_detection
         valid = self.weight_detection > 0
         self.volume_detection = self.volume_detection.transpose(0,1)
         self.volume_detection[:, valid.squeeze(1)==0] = 0
         self.volume_detection = self.volume_detection.transpose(0,1)
         self.valid_detection = valid
      
-    def aggregate_2d_features_ray_marching(self, projections, features, tsdf, scene_id, image_ids):
+    def aggregate_2d_features_ray_marching_points(self, projections, features, tsdf):
         """ Backprojects image features into 3D using ray marching and get the final result
 
         Args:
@@ -319,15 +297,14 @@ class AtlasRayMarching(nn.Module):
 
         Feature volume is accumulated into self.volume and self.valid
         """
-        i = 0
-        B = projection.shape[0]
+        B = projections.shape[1]
         for b in range(B):
             self.points_detection.append(None)
         
         for projection, feature in zip(projections, features):
             projection = projection.clone()
             projection[:,:2,:] = projection[:,:2,:] / self.backbone2d_stride
-            points = self.ray_projection_old(projection, feature, tsdf)
+            points = self.ray_projection_points(projection, feature, tsdf)
             if points == None:
                 continue
             else:
@@ -336,12 +313,12 @@ class AtlasRayMarching(nn.Module):
                         self.points_detection[b] = points[b]
                     else:
                         self.points_detection[b] = torch.concat((self.points_detection[b], points[b]), dim = 0) #M * C
-            i += 1
-        
+
+        #add weights        
         weighted_points = []
         for b in range(B):
             places = self.points_detection[b][:, 0:3] #M * 3
-            weights = self.points_detection[b][:, 3] #M
+            weights = self.points_detection[b][:, 3:4] #M
             point_features = self.points_detection[b][:, 4:] #M * C
             weights = weights / torch.mean(weights) #M 
             weighted_features = point_features * weights #M * C
@@ -370,8 +347,8 @@ class AtlasRayMarching(nn.Module):
         return output, loss 
     
     
-    def fcaf3d_detection(self, inputs, tsdf, volume, valid, test=False):   
-        sparse_coords, sparse_features, inputs['gt_bboxes_3d'] = self.switch_to_sparse(volume, valid, inputs['gt_bboxes_3d'], inputs['offset'], tsdf, test)
+    def fcaf3d_detection_voxels(self, inputs, tsdf, volume, valid, test=False):   
+        sparse_coords, sparse_features, inputs['gt_bboxes_3d'] = self.switch_to_sparse_voxels(volume, valid, inputs['gt_bboxes_3d'], inputs['offset'], tsdf, test)
         
         coordinates, features = ME.utils.batch_sparse_collate(
             [(sparse_coords[i] / self.voxel_size_fcaf3d, sparse_features[i]) for i in range(len(sparse_features))], device=sparse_features[0].device)
@@ -383,7 +360,23 @@ class AtlasRayMarching(nn.Module):
             self.detection_head.get_bboxes(centernesses, bbox_preds, cls_scores, points, inputs['scene'], self.save_path)
         return losses
         
-    def switch_to_sparse(self, feature, valid, gt_bboxes, offsets, tsdf, test):
+    
+    def fcaf3d_detection_points(self, inputs, points, test=False):   
+        sparse_coords, sparse_features, inputs['gt_bboxes_3d'] = self.switch_pointcloud(points, inputs['gt_bboxes_3d'], inputs['offset'], test)
+        #self.save_middle_result_points(inputs['scene'][0], sparse_coords[0], inputs['gt_bboxes_3d'][0], inputs['gt_labels_3d'][0])
+        
+        
+        coordinates, features = ME.utils.batch_sparse_collate(
+            [(sparse_coords[i] / self.voxel_size_fcaf3d, sparse_features[i]) for i in range(len(sparse_features))], device=sparse_features[0].device)
+        x = ME.SparseTensor(coordinates=coordinates, features=features)
+        x = self.detection_backbone(x)        
+        centernesses, bbox_preds, cls_scores, points = list(self.detection_head(x))        
+        losses = self.detection_head.loss(centernesses, bbox_preds, cls_scores, points, inputs['gt_bboxes_3d'], inputs['gt_labels_3d'] )
+        if test:
+            self.detection_head.get_bboxes(centernesses, bbox_preds, cls_scores, points, inputs['scene'], self.save_path)
+        return losses
+        
+    def switch_to_sparse_voxels(self, feature, valid, gt_bboxes, offsets, tsdf, test):
         '''
         Switch the volume to sparse mode, including data augmentation
         
@@ -480,60 +473,39 @@ class AtlasRayMarching(nn.Module):
             sparse_features [list of torch float32 array], [N * C]: [the list of sparse feature, N is the number of valid points]
             new_gt_bboxes [array of torch float array], [M * 7 each]: [the gt bboxes, M is the number of gt bboxes]
         '''
-        #TODO
         B = len(points)
         device = points[0].device
+        C = points[0].shape[1] - 3
+        masks = []
+        coords = []
+        features = []
         for b in range(B):
+            #get new places
+            coord = points[b][:, 0:3]
+            feature = points[b][:, 3:]
+            coord = coord + offsets[b]
+            coords.append(coord)
+            features.append(feature)
             
-            
-        
-        
-        #get coords
-        B, C, X, Y, Z = feature.shape 
-        device = feature.device
-        x_coord, y_coord, z_coord = torch.meshgrid(
-            torch.arange(X, device=device), 
-            torch.arange(Y, device=device), 
-            torch.arange(Z, device=device))  #X * Y * Z
-        x_coord = x_coord.view(1, 1, X, Y, Z).repeat(B, 1, 1, 1, 1)
-        y_coord = y_coord.view(1, 1, X, Y, Z).repeat(B, 1, 1, 1, 1)
-        z_coord = z_coord.view(1, 1, X, Y, Z).repeat(B, 1, 1, 1, 1)
-        coords = torch.concat((x_coord, y_coord, z_coord), dim=1).float() #B * 3 * X * Y * Z
-        coords = coords.permute(0, 2, 3, 4, 1).view(B, X * Y * Z, 3)
-        for i in range(B):
-            coords[i] = coords[i] * self.voxel_size + offsets[i]
-        feature = feature.permute(0, 2, 3, 4, 1).view(B, X * Y * Z, C)
-        #coords: B * (X * Y * Z) * 3
-        #feature: B * (X * Y * Z) * C
-        
-
-        #mask and selection
-        tsdf_sum = int(((tsdf < 0.999) & (tsdf > -0.999)).sum().detach().cpu().numpy())
-        if self.use_tsdf:
-            if tsdf_sum > 1000:
-                mask = (tsdf < 0.999) & (tsdf > -0.999) & valid
-            else:
-                mask = valid 
-                print('tsdf:', tsdf_sum)
-        else:
-            mask = valid
-        
-        if self.max_points != None:
-            masks = []
-            for i in range(B):
-                masks.append(sample_mask(mask[i], self.max_points))
-            mask = torch.stack(masks, dim=0)
-        mask = mask.view(B, X * Y * Z)
+            #get sample mask
+            if self.max_points != None:
+                mask = sample_points(coord, max_points=self.max_points)
+                masks.append(mask)
+        if self.max_points == None:
+            masks = None
 
         #selected coords
         selected_coords = []
         new_gt_bboxes = []
         for b in range(B):
-            selected_coords_batch = []
-            for i in range(3):
-                selected_coord = torch.masked_select(coords[b, :, i], mask[b])
-                selected_coords_batch.append(selected_coord)
-            selected_coords_batch = torch.stack(selected_coords_batch, dim=1).float()
+            if masks != None:
+                selected_coords_batch = []
+                for i in range(3):
+                    selected_coord = torch.masked_select(coords[b][:, i], masks[b])
+                    selected_coords_batch.append(selected_coord)
+                selected_coords_batch = torch.stack(selected_coords_batch, dim=1).float()
+            else:
+                selected_coords_batch = coords[b]
             if self.feature_transform != None and (not test):
                 selected_coords_batch, gt_bbox = self.feature_transform(selected_coords_batch, gt_bboxes[b])
             else:
@@ -544,16 +516,18 @@ class AtlasRayMarching(nn.Module):
         
         selected_features = []
         for b in range(B):
-            selected_features_batch = []
-            for i in range(C):
-                selected_feature = torch.masked_select(feature[b, :, i], mask[b]) 
-                selected_features_batch.append(selected_feature)
-            selected_features_batch = torch.stack(selected_features_batch, dim=1).float()
+            if masks != None:
+                selected_features_batch = []
+                for i in range(C):
+                    selected_feature = torch.masked_select(features[b][:, i], masks[b]) 
+                    selected_features_batch.append(selected_feature)
+                selected_features_batch = torch.stack(selected_features_batch, dim=1).float()
+            else:
+                selected_features_batch = features[b]
             selected_features.append(selected_features_batch)
           
         return selected_coords, selected_features, new_gt_bboxes
-   
-        
+
     def forward_train(self, inputs):
         self.voxel_dim = self.voxel_dim_train
         self.initialize_volume()
@@ -585,8 +559,10 @@ class AtlasRayMarching(nn.Module):
         recon_result, recon_loss = self.atlas_reconstruction(inputs['tsdf_list'])
         
         #ray marching
-        self.aggregate_2d_features_ray_marching(projections, features, recon_result['scene_tsdf_004'], inputs['scene'][0], inputs['image_ids'][0])
-        
+        if self.middle_type == 'voxels':
+            self.aggregate_2d_features_ray_marching_voxels(projections, features, recon_result['scene_tsdf_004'])
+        else:
+            self.aggregate_2d_features_ray_marching_points(projections, features, recon_result['scene_tsdf_004'])
 
         
         '''
@@ -635,7 +611,11 @@ class AtlasRayMarching(nn.Module):
             
         
         #detection_loss = self.fcaf3d_detection(inputs, recon_result['scene_tsdf_004'], self.volume, self.valid, test=False)        
-        detection_loss = self.fcaf3d_detection(inputs, recon_result['scene_tsdf_004'], self.volume_detection, self.valid_detection, test=False)        
+        if self.middle_type == 'voxels':
+            detection_loss = self.fcaf3d_detection_voxels(inputs, recon_result['scene_tsdf_004'], self.volume_detection, self.valid_detection, test=False)        
+        else:
+            detection_loss = self.fcaf3d_detection_points(inputs, self.points_detection, test=False)
+                
                 
         #get loss 
         losses = {}
@@ -680,13 +660,16 @@ class AtlasRayMarching(nn.Module):
         recon_result, recon_loss = self.atlas_reconstruction(inputs['tsdf_list'])
         
         #ray marching
-        self.aggregate_2d_features_ray_marching(projections, features, recon_result['scene_tsdf_004'])
-        
+        if self.middle_type == 'voxels':
+            self.aggregate_2d_features_ray_marching_voxels(projections, features, recon_result['scene_tsdf_004'])
+        else:
+            self.aggregate_2d_features_ray_marching_points(projections, features, recon_result['scene_tsdf_004'])
 
 
-        
-        #detection_loss = self.fcaf3d_detection(inputs, recon_result['scene_tsdf_004'], self.volume, self.valid, test=True)        
-        detection_loss = self.fcaf3d_detection(inputs, recon_result['scene_tsdf_004'], self.volume_detection, self.valid_detection, test=True)        
+        if self.middle_type == 'voxels':
+            detection_loss = self.fcaf3d_detection_voxels(inputs, recon_result['scene_tsdf_004'], self.volume, self.valid, test=True)        
+        else:
+            detection_loss = self.fcaf3d_detection_points(inputs, self.points_detection, test=True)        
 
 
 
@@ -878,7 +861,7 @@ class AtlasRayMarching(nn.Module):
     def init_weights(self):
         pass
 
-    def ray_projection_old(self, projection, features, tsdf, grids=300, weight_threshold=0.02):
+    def ray_projection_voxels(self, projection, features, tsdf, grids=300, weight_threshold=0.02):
         """ Get the 3D coordinates of each pixel with tsdf
         Args:
             projection: bx3x4 projection matrices (intrinsics@extrinsics)
@@ -893,14 +876,10 @@ class AtlasRayMarching(nn.Module):
                     Each voxel contains a positive weight if it projects to a pixel
                     and 0 otherwise 
         """
-        whether_visualize = False 
-        
-        
         X, Y, Z = self.voxel_dim
         B, C, H, W = features.size()
         N = grids
         device = features.device
-        
         
         with torch.no_grad():
             #get o, d, t
@@ -974,7 +953,6 @@ class AtlasRayMarching(nn.Module):
                 useful_id = torch.squeeze(torch.nonzero(flatten_valid[b]))
                 if len(useful_id) == 0:
                     print('No id useful!')
-                    whether_visualize = True
                 
                 useful_weight = weights[b, :, useful_id].permute(1, 0) #M * 1
                 useful_index = voxel_id[b, :, useful_id].permute(1, 0) #M * 3
@@ -1008,7 +986,7 @@ class AtlasRayMarching(nn.Module):
         return volumes, grid_weights    
         #return volumes, grid_weights, whether_visualize, o.view(B, 3, H, W, N), d.view(B, 3, H, W, N), voxel_id.view(B, 3, H, W, N), valid.view(B, H, W, N), tsdf_results.view(B, H, W, N), weights.view(B, H, W, N)
         
-    def ray_projection(self, projection, features, tsdf, grids=300, weight_threshold=0.05):
+    def ray_projection_points(self, projection, features, tsdf, grids=300, weight_threshold=0.05):
         """ Get the 3D coordinates of each pixel with tsdf
         Args:
             projection: bx3x4 projection matrices (intrinsics@extrinsics)
@@ -1095,6 +1073,7 @@ class AtlasRayMarching(nn.Module):
             #select useful weights, places and pixel_ids
             flatten_valid = valid_final.view(B, H * W * N)
             voxel_ids = voxel_ids.view(B, 3, H * W * N)
+            pixel_ids = pixel_ids.view(B, 2, H * W * N)
             places = places.view(B, 3, H * W * N)
             weights = weights.view(B, 1, H * W * N)
             useful_ids = []
@@ -1133,7 +1112,7 @@ class AtlasRayMarching(nn.Module):
         return results
 
         
-    def save_middle_result(self, scene_id, tsdf, middle_original, middle_ray, valid_ray):
+    def save_middle_result_voxels(self, scene_id, tsdf, middle_original, middle_ray, valid_ray):
         '''
         Save TSDF with real coordinates
         '''
@@ -1195,5 +1174,30 @@ class AtlasRayMarching(nn.Module):
         
         kebab=0
 
-    
+    def save_middle_result_points(self, scene_id, coords, bboxes, labels):
+        '''
+        Save TSDF with real coordinates
+        '''
+        import open3d as o3d
+        save_path = '/home/sgl/work_dirs_atlas/atlas_ray_marching/test'
+        if not os.path.exists(os.path.join(save_path, scene_id)):
+            os.makedirs(os.path.join(save_path, scene_id))
+        N = labels.shape[0]
+        
+        scores = np.ones(N) #N
+        labels = labels.detach().cpu().numpy() #N
+        bboxes = bboxes.tensor.detach().cpu().numpy() #N * 7
+        bboxes[:, 2] = bboxes[:, 2] + bboxes[:, 5] / 2
+        save_path_bbox = os.path.join(save_path, scene_id, scene_id + '_gt_bbox.npz')
+        np.savez(save_path_bbox, boxes=bboxes, scores=scores, labels=labels)
+        
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(coords.detach().cpu().numpy())
+        save_path_points = os.path.join(save_path, scene_id, scene_id + '_points.ply')
+        o3d.io.write_point_cloud(save_path_points, pcd)
+        
+        kebab=0
+        
+        
+        
 
