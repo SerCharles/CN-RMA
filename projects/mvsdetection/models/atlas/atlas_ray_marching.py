@@ -297,6 +297,7 @@ class AtlasRayMarching(nn.Module):
 
         Feature volume is accumulated into self.volume and self.valid
         """
+
         B = projections.shape[1]
         for b in range(B):
             self.points_detection.append(None)
@@ -314,6 +315,8 @@ class AtlasRayMarching(nn.Module):
                     else:
                         self.points_detection[b] = torch.concat((self.points_detection[b], points[b]), dim = 0) #M * C
 
+
+
         #add weights        
         weighted_points = []
         for b in range(B):
@@ -325,6 +328,8 @@ class AtlasRayMarching(nn.Module):
             current_points = torch.concat((places, weighted_features), dim=1) #M * (C + 3)
             weighted_points.append(current_points)
         self.points_detection = weighted_points
+        
+
             
 
         
@@ -363,7 +368,7 @@ class AtlasRayMarching(nn.Module):
     
     def fcaf3d_detection_points(self, inputs, points, test=False):   
         sparse_coords, sparse_features, inputs['gt_bboxes_3d'] = self.switch_pointcloud(points, inputs['gt_bboxes_3d'], inputs['offset'], test)
-        #self.save_middle_result_points(inputs['scene'][0], sparse_coords[0], inputs['gt_bboxes_3d'][0], inputs['gt_labels_3d'][0])
+        #self.visualize_points(inputs['scene'][0], sparse_coords[0], inputs['gt_bboxes_3d'][0], inputs['gt_labels_3d'][0])
         
         
         coordinates, features = ME.utils.batch_sparse_collate(
@@ -694,8 +699,8 @@ class AtlasRayMarching(nn.Module):
             #kebab.export(os.path.join(self.save_path, scene_id, scene_id + '_gt.ply'))
         
         
-        #self.save_middle_result(scene_id, result['scene_tsdf'], self.volume[0], self.volume_detection[0], self.valid_detection[0])
-
+        #self.save_middle_result_voxels(scene_id, result['scene_tsdf'], self.volume[0], self.volume_detection[0], self.valid_detection[0])
+        #self.save_middle_result_points(scene_id, self.points_detection[0], result['scene_tsdf'].origin)
         
         return [{}]
 
@@ -998,7 +1003,7 @@ class AtlasRayMarching(nn.Module):
         Returns:
             results: array of M * (C + 4) point clouds; concated by [places (B * M * 3), weights (B * M * 1), features(B * M * C)]
             if no possible point cloud, return None
-        """
+        """   
         X, Y, Z = self.voxel_dim
         B, C, H, W = features.size()
         N = grids
@@ -1017,10 +1022,11 @@ class AtlasRayMarching(nn.Module):
 
             #get pixel ids
             v, u = torch.meshgrid(torch.arange(0, H), torch.arange(0, W))
-            u = u.view(1, 1, H, W, 1).repeat(B, 1, 1, 1, N).view(B, 1, H * W * N).type(torch.long).to(device) #B * 1 * (H * W * N)
-            v = v.view(1, 1, H, W, 1).repeat(B, 1, 1, 1, N).view(B, 1, H * W * N).type(torch.long).to(device) #B * 1 * (H * W * N)
-            pixel_ids = torch.concat((u, v), dim=1) #B * 2 * (H * W * N)
-        
+            u = u.view(1, 1, H, W, 1).type(torch.long).to(device) 
+            v = v.view(1, 1, H, W, 1).type(torch.long).to(device)
+            pixel_ids = torch.concat((u, v), dim=1) 
+            pixel_ids = pixel_ids.repeat(B, 1, 1, 1, N).view(B, 2, H * W * N)
+                
             #get voxel ids
             d = d.view(B, 3, H * W, 1).repeat(1, 1, 1, N).view(B, 3, H * W * N) #B * 3 * (H * W * N)
             o = o.view(B, 3, H * W, 1).repeat(1, 1, 1, N).view(B, 3, H * W * N) #B * 3 * (H * W * N)
@@ -1033,7 +1039,6 @@ class AtlasRayMarching(nn.Module):
             voxel_ids[:, 0, :][valid == 0] = 0
             voxel_ids[:, 1, :][valid == 0] = 0
             voxel_ids[:, 2, :][valid == 0] = 0
-
     
             #get tsdf values
             tsdf_results = []
@@ -1050,7 +1055,6 @@ class AtlasRayMarching(nn.Module):
             voxel_ids = voxel_ids.view(B, 3, H, W, N)
             valid = valid.view(B, H, W, N)
             pixel_ids = pixel_ids.view(B, 2, H, W, N)
-        
             
             #get the weights of each grids based on NEUS
             #alpha_i = max((sigmoid(TSDF_i) - sigmoid(TSDF_i+1)) / sigmoid(TSDF_i), 0)
@@ -1069,7 +1073,7 @@ class AtlasRayMarching(nn.Module):
             valid_grid = weights >= weight_threshold
             valid_final = valid & valid_grid
             weights = weights * valid_final
-        
+                
             #select useful weights, places and pixel_ids
             flatten_valid = valid_final.view(B, H * W * N)
             voxel_ids = voxel_ids.view(B, 3, H * W * N)
@@ -1094,7 +1098,7 @@ class AtlasRayMarching(nn.Module):
                 useful_weights.append(useful_weight)
                 useful_places.append(useful_place)
                 useful_pixel_ids.append(useful_pixel_id)
-            
+                        
         #get useful features
         useful_features = []
         for b in range(B):
@@ -1103,7 +1107,7 @@ class AtlasRayMarching(nn.Module):
             v = useful_pixel_ids[b][:, 1] #M 
             useful_feature = features[b, :, v, u].permute(1, 0) #M * C
             useful_features.append(useful_feature)
-        
+                
         #concat all things
         results = []
         for b in range(B):
@@ -1174,7 +1178,45 @@ class AtlasRayMarching(nn.Module):
         
         kebab=0
 
-    def save_middle_result_points(self, scene_id, coords, bboxes, labels):
+    def save_middle_result_points(self, scene_id, coords, offset, max_points=500000):
+        '''
+        Save TSDF with real coordinates
+        '''
+        import open3d as o3d
+        save_path = '/data1/sgl/ray_marching_points_middle'
+        visualize_path = '/data1/sgl/ray_marching_points_result'
+        if not os.path.exists(os.path.join(visualize_path, scene_id)):
+            os.makedirs(os.path.join(visualize_path, scene_id))
+            
+        N = coords.shape[0]
+        C = coords.shape[1] - 3        
+        coords = coords.detach().cpu()
+        coords[:, 0:3] = coords[:, 0:3] + offset.detach().cpu()
+        if N > max_points:
+            choices = np.random.choice(N, max_points, replace=False)
+            mask = np.zeros(N, dtype=np.bool)
+            mask[choices] = 1
+            mask = torch.tensor(mask).view(N).to(coords.device)
+
+            selected_coords = []
+            for i in range(C + 3):
+                selected_coord = torch.masked_select(coords[:, i], mask)
+                selected_coords.append(selected_coord)
+            selected_coords = torch.stack(selected_coords, dim=1)
+            coords = selected_coords
+        
+        save_place = os.path.join(save_path, scene_id + '_vert.npy')
+        visualize_place = os.path.join(visualize_path, scene_id, scene_id + '_points.ply')
+        
+        np.save(save_place, coords)
+        '''
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(coords[:, 0:3])
+        o3d.io.write_point_cloud(visualize_place, pcd)
+        '''
+        kebab=0
+
+    def visualize_points(self, scene_id, coords, bboxes, labels):
         '''
         Save TSDF with real coordinates
         '''
