@@ -305,8 +305,12 @@ class AtlasRayMarching(nn.Module):
         for projection, feature in zip(projections, features):
             projection = projection.clone()
             projection[:,:2,:] = projection[:,:2,:] / self.backbone2d_stride
-            points = self.ray_projection_points(projection, feature, tsdf)
+            try:
+                points = self.ray_projection_points(projection, feature, tsdf)
+            except:
+                points = None
             if points == None:
+                print('No valid points!')
                 continue
             else:
                 for b in range(len(points)):
@@ -1088,7 +1092,6 @@ class AtlasRayMarching(nn.Module):
             for b in range(B):
                 useful_id = torch.squeeze(torch.nonzero(flatten_valid[b]))
                 if len(useful_id) == 0:
-                    print('No id useful!')
                     return None
                 
                 useful_weight = weights[b, :, useful_id].permute(1, 0) #M * 1
