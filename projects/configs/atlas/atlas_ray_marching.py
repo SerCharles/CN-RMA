@@ -28,7 +28,7 @@ lr_config = dict(policy='step', warmup=None, step=[80, 110])
 
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = '/home/sgl/work_dirs_atlas/atlas_ray_marching_points'
+work_dir = '/home/sgl/work_dirs_atlas/atlas_ray_marching_depth'
 save_path = work_dir + '/results'
 load_from = '/home/sgl/work_dirs_atlas/ray_marching_base_points.pth'
 resume_from = None

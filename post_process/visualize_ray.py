@@ -281,16 +281,112 @@ def visualize_voxels(mesh_path, ray_path, save_path):
     scene = trimesh.util.concatenate(scene.dump())
     scene.export(save_path)
 
+def visualize_depth(mesh_path, ray_path, save_path, mode='weight'):
+    """
+    Visualize the boxes and quads in the final pointcloud
+    
+    Args:
+        mesh_path [str]: [the path of the original mesh]
+        ray_path [str]: [the path of the ray info]
+        save_path [str]: [the saving path]
+        mode [str]: [select by weight or tsdf]
+    """
+    colors = np.multiply([
+        plt.cm.get_cmap('gist_ncar', 37)((i * 7 + 5) % 37)[:3] for i in range(37)
+    ], 255).astype(np.uint8).tolist()
+    ray_info = np.load(ray_path)
+    os = ray_info['o'] #B * 3 * H * W * 8
+    ds = ray_info['d'] #B * 3 * H * W * 8
+    voxel_ids = ray_info['voxel_id'] #B * 3 * H * W * 8
+    origin = ray_info['origin'][0]
+    weights = ray_info['weights']
+    B, _, H, W, N = voxel_ids.shape
+
+    hs = []
+    ws = []
+    for i in range(8):
+        for j in range(8):
+            h = i * 15
+            w = j * 20
+            hs.append(h)
+            ws.append(w)
+    #hs = [0, 0, H - 1, H - 1, H // 2, H // 2]
+    #ws = [0, W - 1, 0, W - 1, W // 2, (W * 3) // 4]
+
+
+    all_edges = [] 
+    all_colors = []   
+    color_thresholds = [0.251, 0.501, 0.751, 1.01]
+     
+    for ii in range(len(hs)):
+        b = 0 
+        h = hs[ii]
+        w = ws[ii]
+       
+        o = os[b, :, h, w, 0]
+        d = ds[b, :, h, w, 0]
+        
+        t_max = sqrt(192 ** 2 + 192 ** 2 + 80 ** 2) * 0.04
+        final = o + d * t_max  
+        edge = np.stack([o, final], axis=0)[None, :, :]
+        all_edges.append(edge)
+        all_colors.extend([colors[10]])
+    
+        for i in range(N):
+            voxel_id = voxel_ids[b, :, h, w, i]
+            weight = weights[b, h, w, i]
+            edges = get_voxel_edges(voxel_id, origin, 0.04)
+            all_edges.append(edges)
+            for jj in range(len(color_thresholds)):
+                if weight < color_thresholds[jj]:
+                    color = colors[jj]
+                    break
+            all_colors.extend([color] * 12)
+
+
+    if len(all_edges) > 0:
+        all_edges = np.concatenate(all_edges, axis=0)
+
+    original_trimesh = init_scene(mesh_path, None)
+    scene = trimesh.scene.Scene()
+    scene.add_geometry(original_trimesh)
+
+    rad = 0.005
+    res = 16
+    for i in range(len(all_edges)):
+        source = all_edges[i][0]
+        target = all_edges[i][1]
+        edge_color = all_colors[i]
+        
+        # compute line
+        vector = target - source 
+        M = trimesh.geometry.align_vectors([0,0,1], vector, False)
+        vector = target - source # compute again since align_vectors modifies vec in-place!
+        M[:3,3] = 0.5 * source + 0.5 * target
+        height = np.sqrt(np.dot(vector, vector))
+        edge_mesh = trimesh.creation.cylinder(radius=rad, height=height, sections=res, transform=M)
+        edge_vertexs = np.array(edge_mesh.vertices).tolist()
+        edge_colors = [edge_color] * len(edge_vertexs)
+        edge_faces = np.array(edge_mesh.faces).tolist()
+        edge_mesh = trimesh.Trimesh(vertices=edge_vertexs, vertex_colors=edge_colors, faces=edge_faces)
+        scene.add_geometry(edge_mesh)
+
+
+    scene = trimesh.util.concatenate(scene.dump())
+    scene.export(save_path)
 
 if __name__ == "__main__":
-    scene_id = 'scene0588_01'
-    image_id = 81
-    save_dir = '/home/sgl/work_dirs_atlas/atlas_ray_marching/results'
+    
+    scene_id = 'scene0011_00'
+    image_id = 165
+    save_dir = '/home/sgl/work_dirs_atlas/atlas_ray_marching_depth/results'
     name = scene_id + '_' + str(image_id)
     mesh_path = os.path.join(save_dir, name, name + '.ply')
     ray_path = os.path.join(save_dir, name, name + '.npz')
-    save_path = os.path.join(save_dir, name, name + '_')
-
+    save_path = os.path.join(save_dir, name, name + '_depth.ply')
+    visualize_depth(mesh_path, ray_path, save_path)
+    '''
     visualize_ray(mesh_path, ray_path, save_path)
     visualize_ray(mesh_path, ray_path, save_path, mode='tsdf')
+    '''
     
