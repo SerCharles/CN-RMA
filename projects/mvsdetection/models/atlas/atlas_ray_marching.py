@@ -708,7 +708,7 @@ class AtlasRayMarching(nn.Module):
         
         
         #self.save_middle_result_voxels(scene_id, result['scene_tsdf'], self.volume[0], self.volume_detection[0], self.valid_detection[0])
-        #self.save_middle_result_points(scene_id, self.points_detection[0], result['scene_tsdf'].origin)
+        self.save_middle_result_points(scene_id, self.points_detection[0], result['scene_tsdf'].origin)
         
         return [{}]
 
@@ -1122,7 +1122,7 @@ class AtlasRayMarching(nn.Module):
             results.append(result)
         return results
 
-    def ray_projection_depth(self, projection, features, tsdf, grids=300, select_grids=4):
+    def ray_projection_depth(self, projection, features, tsdf, grids=300, select_grids=2):
         """ Get the 3D coordinates of each pixel with tsdf
         Args:
             projection: bx3x4 projection matrices (intrinsics@extrinsics)
@@ -1139,7 +1139,7 @@ class AtlasRayMarching(nn.Module):
         B, C, H, W = features.size()
         N = grids
         device = features.device
-        
+                
         with torch.no_grad():
             #get o, d, t
             origin_extend = self.origin.view(B, 3, 1).repeat(1, 1, H * W).to(device) #B * 3 * (H * W)
@@ -1188,6 +1188,7 @@ class AtlasRayMarching(nn.Module):
             voxel_ids = voxel_ids.view(B, 3, H, W, N)
             valid = valid.view(B, H, W, N)
             
+                        
             #get depth and weights
             tsdf_multiply = tsdf_results[:, :, :, :-1] * tsdf_results[:, :, :, 1:]
             tsdf_ones = torch.ones((B, H, W, 1), dtype=torch.float32).to(device)
@@ -1225,6 +1226,7 @@ class AtlasRayMarching(nn.Module):
             selected_voxel_ids = ((selected_places - selected_origin) / self.voxel_size).round().type(torch.long)
             return selected_o, selected_d, selected_voxel_ids, selected_weights   
             '''
+            
                 
             #select useful weights, places and pixel_ids
             flatten_valid = selected_valids.view(B, H * W * NUM)
@@ -1267,6 +1269,7 @@ class AtlasRayMarching(nn.Module):
         for b in range(B):
             result = torch.concat((useful_places[b], useful_weights[b], useful_features[b]), dim=1) #M * (C + 4)
             results.append(result)
+        
         return results
 
         
@@ -1337,7 +1340,7 @@ class AtlasRayMarching(nn.Module):
         Save TSDF with real coordinates
         '''
         import open3d as o3d
-        save_path = '/data1/sgl/ray_marching_points_middle'
+        save_path = '/data1/sgl/ray_marching_middle_depth_2'
         visualize_path = '/data1/sgl/ray_marching_points_result'
         if not os.path.exists(os.path.join(visualize_path, scene_id)):
             os.makedirs(os.path.join(visualize_path, scene_id))
