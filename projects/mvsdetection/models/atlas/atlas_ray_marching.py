@@ -305,10 +305,10 @@ class AtlasRayMarching(nn.Module):
         for projection, feature in zip(projections, features):
             projection = projection.clone()
             projection[:,:2,:] = projection[:,:2,:] / self.backbone2d_stride
-            try:
-                points = self.ray_projection_depth(projection, feature, tsdf)
-            except:
-                points = None
+            #try:
+            points = self.ray_projection_depth(projection, feature, tsdf)
+            #except:
+            #points = None
             if points == None:
                 print('No valid points!')
                 continue
@@ -708,7 +708,7 @@ class AtlasRayMarching(nn.Module):
         
         
         #self.save_middle_result_voxels(scene_id, result['scene_tsdf'], self.volume[0], self.volume_detection[0], self.valid_detection[0])
-        self.save_middle_result_points(scene_id, self.points_detection[0], result['scene_tsdf'].origin)
+        #self.save_middle_result_points(scene_id, self.points_detection[0], result['scene_tsdf'].origin)
         
         return [{}]
 
@@ -1122,7 +1122,7 @@ class AtlasRayMarching(nn.Module):
             results.append(result)
         return results
 
-    def ray_projection_depth(self, projection, features, tsdf, grids=300, select_grids=2):
+    def ray_projection_depth(self, projection, features, tsdf, grids=300, select_grids=0):
         """ Get the 3D coordinates of each pixel with tsdf
         Args:
             projection: bx3x4 projection matrices (intrinsics@extrinsics)
@@ -1199,33 +1199,43 @@ class AtlasRayMarching(nn.Module):
             best_weight = best_mask.float()
             
             #get other adjacent places
-            NUM = 2 * select_grids
-            selected_indices = best_index.view(B, H, W, 1).repeat(1, 1, 1, NUM)
-            selected_weights = best_weight.view(B, H, W, 1).repeat(1, 1, 1, NUM)
-            add_num = torch.arange(0, NUM) - select_grids + 1
-            add_num = add_num.to(device)
-            multi_weight = torch.arange(0, select_grids) + 1
-            multi_weight_ = multi_weight.clone().flip(dims=[0])
-            multi_weight = torch.concat((multi_weight, multi_weight_), dim=0)
-            multi_weight = (multi_weight.float() / select_grids).to(device)
-            add_num = add_num.view(1, 1, 1, NUM).repeat(B, H, W, 1)
-            multi_weight = multi_weight.view(1, 1, 1, NUM).repeat(B, H, W, 1)
-            selected_indices = selected_indices + add_num
-            selected_weights = selected_weights * multi_weight
-            selected_mask = (selected_indices >= 0) & (selected_indices < N)
-            selected_weights = selected_weights * selected_mask
+            if select_grids > 0:
+                NUM = 2 * select_grids
+                selected_indices = best_index.view(B, H, W, 1).repeat(1, 1, 1, NUM)
+                selected_weights = best_weight.view(B, H, W, 1).repeat(1, 1, 1, NUM)
+                add_num = torch.arange(0, NUM) - select_grids + 1
+                add_num = add_num.to(device)
+                multi_weight = torch.arange(0, select_grids) + 1
+                multi_weight_ = multi_weight.clone().flip(dims=[0])
+                multi_weight = torch.concat((multi_weight, multi_weight_), dim=0)
+                multi_weight = (multi_weight.float() / select_grids).to(device)
+                add_num = add_num.view(1, 1, 1, NUM).repeat(B, H, W, 1)
+                multi_weight = multi_weight.view(1, 1, 1, NUM).repeat(B, H, W, 1)
+                selected_indices = selected_indices + add_num
+                selected_weights = selected_weights * multi_weight
+                selected_mask = (selected_indices >= 0) & (selected_indices < N)
+                selected_weights = selected_weights * selected_mask
             
-            selected_valids = selected_weights > 0  #B * H * W * NUM
-            selected_pixel_ids = pixel_ids.view(B, 2, H, W, 1).repeat(1, 1, 1, 1, NUM) #B * 2 * H * W * NUM
-            selected_o = o[:, :, :, :, 0:NUM] #B * 3 * H * W * NUM
-            selected_d = d[:, :, :, :, 0:NUM] #B * 3 * H * W * NUM
-            selected_places = selected_o + selected_d * selected_indices * t_one #B * 3 * H * W * NUM
+                selected_valids = selected_weights > 0  #B * H * W * NUM
+                selected_pixel_ids = pixel_ids.view(B, 2, H, W, 1).repeat(1, 1, 1, 1, NUM) #B * 2 * H * W * NUM
+                selected_o = o[:, :, :, :, 0:NUM] #B * 3 * H * W * NUM
+                selected_d = d[:, :, :, :, 0:NUM] #B * 3 * H * W * NUM
+                selected_places = selected_o + selected_d * selected_indices * t_one #B * 3 * H * W * NUM
+                '''
+                selected_origin = self.origin.view(B, 3, 1, 1, 1).repeat(1, 1, H, W, NUM).to(device)
+                selected_voxel_ids = ((selected_places - selected_origin) / self.voxel_size).round().type(torch.long)
+                return selected_o, selected_d, selected_voxel_ids, selected_weights   
+                '''
+            else:
+                NUM = 1
+                selected_pixel_ids = pixel_ids.view(B, 2, H, W, 1)
+                selected_o = o[:, :, :, :, 0:1] #B * 3 * H * W * 1
+                selected_d = d[:, :, :, :, 0:1] #B * 3 * H * W * 1
+                selected_indices = best_index.view(B, H, W, 1) + 0.5
+                selected_weights = best_weight.view(B, H, W, 1)
+                selected_valids = selected_weights > 0
+                selected_places = selected_o + selected_d * selected_indices * t_one #B * 3 * H * W * 1    
             
-            '''
-            selected_origin = self.origin.view(B, 3, 1, 1, 1).repeat(1, 1, H, W, NUM).to(device)
-            selected_voxel_ids = ((selected_places - selected_origin) / self.voxel_size).round().type(torch.long)
-            return selected_o, selected_d, selected_voxel_ids, selected_weights   
-            '''
             
                 
             #select useful weights, places and pixel_ids
@@ -1335,12 +1345,12 @@ class AtlasRayMarching(nn.Module):
         
         kebab=0
 
-    def save_middle_result_points(self, scene_id, coords, offset, max_points=500000):
+    def save_middle_result_points(self, scene_id, coords, offset):
         '''
         Save TSDF with real coordinates
         '''
         import open3d as o3d
-        save_path = '/data1/sgl/ray_marching_middle_depth_2'
+        save_path = '/data1/sgl/ray_marching_middle_depth_0'
         visualize_path = '/data1/sgl/ray_marching_points_result'
         if not os.path.exists(os.path.join(visualize_path, scene_id)):
             os.makedirs(os.path.join(visualize_path, scene_id))
@@ -1349,8 +1359,8 @@ class AtlasRayMarching(nn.Module):
         C = coords.shape[1] - 3        
         coords = coords.detach().cpu()
         coords[:, 0:3] = coords[:, 0:3] + offset.detach().cpu()
-        if N > max_points:
-            choices = np.random.choice(N, max_points, replace=False)
+        if N > self.max_points:
+            choices = np.random.choice(N, self.max_points, replace=False)
             mask = np.zeros(N, dtype=np.bool)
             mask[choices] = 1
             mask = torch.tensor(mask).view(N).to(coords.device)

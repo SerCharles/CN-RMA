@@ -259,7 +259,7 @@ def generate_gt(box_path, save_path):
 def main():
     parser = argparse.ArgumentParser(description="NeuralRecon ScanNet Testing")
     parser.add_argument("--data_path", type=str, default='/data1/sgl/ScanNet')
-    #parser.add_argument("--save_path", type=str, default='/home/sgl/work_dirs_atlas/atlas_ray_marching_points/results')
+    #parser.add_argument("--save_path", type=str, default='/data1/sgl/ray_marching_depth_4/results')
     parser.add_argument("--save_path", type=str, default='/data1/sgl/ray_marching_points_result')
 
     args = parser.parse_args()
@@ -283,8 +283,8 @@ def main():
         '''
         meta_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '.txt')
         mesh_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '_vh_clean_2.ply')
-        bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_atlas_bbox.npz')
-        save_path = os.path.join(args.save_path, scene_id, scene_id + '_atlas_bbox.ply')
+        bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_fcaf3d_retrain.npz')
+        save_path = os.path.join(args.save_path, scene_id, scene_id + '_fcaf3d_retrain.ply')
         visualize_boxs(mesh_path, meta_path, bbox_path, save_path, type='mesh')
         '''
         '''
