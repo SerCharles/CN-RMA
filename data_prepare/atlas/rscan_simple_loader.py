@@ -20,7 +20,7 @@ from PIL import Image
 import torch
 
 
-class ScanNetSimpleDataset(torch.utils.data.Dataset):
+class RScanSimpleDataset(torch.utils.data.Dataset):
     """Pytorch Dataset for a single scene. getitem loads individual frames"""
 
     def __init__(self, data_path, scene_id, transform=None):
@@ -37,7 +37,8 @@ class ScanNetSimpleDataset(torch.utils.data.Dataset):
         self.data_path = data_path
         self.scene_id = scene_id
         self.transform = transform
-        self.n_images = len([_ for _ in os.listdir(os.path.join(data_path, 'posed_images', scene_id)) if _.endswith(".jpg")])
+        self.n_images = len([_ for _ in os.listdir(os.path.join(data_path, scene_id, 'sequence')) if _.endswith(".jpg")])
+
 
     def __len__(self):
         return self.n_images
@@ -71,44 +72,40 @@ class ScanNetSimpleDataset(torch.utils.data.Dataset):
         Returns:
             dict containg metadata plus the loaded image
         """
-        idx = str(i).zfill(5)
-        intrinsic_path = os.path.join(self.data_path, 'posed_images', self.scene_id, "intrinsic_color.txt")
-        extrinsic_path = os.path.join(self.data_path, 'posed_images', self.scene_id, idx + ".txt")
-        image_path = os.path.join(self.data_path, 'posed_images', self.scene_id, idx + ".jpg")
-        depth_path = os.path.join(self.data_path, 'posed_images', self.scene_id, idx + ".png")
+        idx = str(i).zfill(6)
+        intrinsic_path = os.path.join(self.data_path, self.scene_id, 'sequence', '_info.txt')
+        extrinsic_path = os.path.join(self.data_path, self.scene_id, 'sequence', 'frame-' + idx + ".pose.txt")
+        image_path = os.path.join(self.data_path, self.scene_id, 'sequence', 'frame-' + idx + ".color.jpg")
+        depth_path = os.path.join(self.data_path, self.scene_id, 'sequence', 'frame-' + idx + ".depth.pgm")
         
         data = {}
         data['id'] = i
         data['image'] = Image.open(image_path)
-        data['intrinsics'] = np.loadtxt(intrinsic_path, dtype=np.float32)[:3, :3]
+        data['intrinsics_color'] = self.read_intrinsic(intrinsic_path, 'm_calibrationColorIntrinsic')[:3, :3]
+        data['intrinsics_depth'] = self.read_intrinsic(intrinsic_path, 'm_calibrationDepthIntrinsic')[:3, :3]
         data['pose'] = np.loadtxt(extrinsic_path, dtype=np.float32)
         depth = Image.open(depth_path)
         depth = np.array(depth, dtype=np.float32) / 1000.0
         data['depth'] = Image.fromarray(depth)
-        
-        axis_align_path = os.path.join(self.data_path, 'scans', self.scene_id, self.scene_id + '.txt')
-        axis_align_matrix = self.read_axis_align_matrix(axis_align_path)
-        
+                
         if not np.all(np.isfinite(data['pose'])):
             data['valid'] = False
             print(self.scene_id + '/image_' + str(data['id']) + ' is invalid, removed!')
         else:
             data['valid'] = True  
-            data['pose'] = axis_align_matrix @ data['pose']
-
             
         return data
     
-    def read_axis_align_matrix(self, data_path):
-        axis_align_matrix = np.eye(4)
+    def read_intrinsic(self, data_path, string):
+        intrinsic = np.eye(4)
         if os.path.exists(data_path):
             lines = open(data_path).readlines()
             for line in lines:
-                if 'axisAlignment' in line:
-                    axis_align_matrix = [
+                if string in line:
+                    intrinsic = [
                         float(x)
-                        for x in line.rstrip().strip('axisAlignment = ').split(' ')
+                        for x in line.rstrip().strip(string + ' = ').split(' ')
                     ]
                     break    
-        axis_align_matrix = np.array(axis_align_matrix, dtype=np.float32).reshape((4, 4))
-        return axis_align_matrix
+        intrinsic = np.array(intrinsic, dtype=np.float32).reshape((4, 4))
+        return intrinsic

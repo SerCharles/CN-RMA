@@ -74,6 +74,19 @@ def pad_scannet(frame):
     return frame
 
 
+def pad_3rscan(frame):
+    """ change 224 * 172 to 224 * 168
+    """
+
+    w,h = frame['image'].size
+    if w==224 and h==172:
+        frame['image'] = frame['image'].crop((0, 2, 224, 170))
+        frame['intrinsics_color'][1, 2] -= 2
+        frame['depth'] = frame['depth'].crop((0, 2, 224, 170))
+        frame['intrinsics_depth'][1, 2] -= 2
+    return frame
+
+
 class ResizeImage(object):
     """ Resize everything to given size.
 
@@ -81,25 +94,42 @@ class ResizeImage(object):
     After resize everything (ex: depth) should have the same intrinsics
     """
 
-    def __init__(self, size):
+    def __init__(self, size, dataset):
         self.size = size
+        self.dataset = dataset 
 
     def __call__(self, data):
         for frame in data['frames']:
-            pad_scannet(frame)
-
+            if self.dataset == 'scannet':
+                pad_scannet(frame)
             w,h = frame['image'].size
             frame['image'] = frame['image'].resize(self.size, Image.BILINEAR)
-            frame['intrinsics'][0, :] /= (w / self.size[0])
-            frame['intrinsics'][1, :] /= (h / self.size[1])
-
+            if self.dataset == 'scannet':
+                frame['intrinsics'][0, :] /= (w / self.size[0])
+                frame['intrinsics'][1, :] /= (h / self.size[1])
+            else:
+                frame['intrinsics_color'][0, :] /= (w / self.size[0])
+                frame['intrinsics_color'][1, :] /= (h / self.size[1])
+            
             if 'depth' in frame:
+                ww, hh = frame['depth'].size
                 frame['depth'] = frame['depth'].resize(self.size, Image.NEAREST)
+                if self.dataset == '3rscan':
+                    frame['intrinsics_depth'][0, :] /= (ww / self.size[0])
+                    frame['intrinsics_depth'][1, :] /= (hh / self.size[1])   
+            
 
             if 'instance' in frame and frame['instance'] is not None:
                 frame['instance'] = frame['instance'].resize(self.size, Image.NEAREST)
             #if 'semseg' in frame:
             #    frame['semseg'] = frame['semseg'].resize(self.size, Image.NEAREST)
+            
+            if self.dataset == '3rscan':
+            #   pad_3rscan(frame)
+            
+                frame['intrinsics'] = frame['intrinsics_depth']
+                frame.pop('intrinsics_color')
+                frame.pop('intrinsics_depth')
 
         return data
 

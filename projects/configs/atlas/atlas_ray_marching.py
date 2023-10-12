@@ -28,15 +28,18 @@ lr_config = dict(policy='step', warmup=None, step=[80, 110])
 
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = '/home/sgl/work_dirs_atlas/atlas_ray_marching_depth'
+work_dir = '/home/sgl/work_dirs_atlas/ray_marching_300_010'
 save_path = work_dir + '/results'
-load_from = '/home/sgl/work_dirs_atlas/ray_marching_base_points.pth'
-resume_from = None
+#load_from = '/home/sgl/work_dirs_atlas/ray_marching_neus_300_010.pth'
+#resume_from = None
+load_from = None
+resume_from = '/home/sgl/work_dirs_atlas/ray_marching_300_010/epoch_90.pth'
+
 workflow = [('train', 1)]
 total_epochs = 120
 evaluation = dict(interval=3000, voxel_size=VOXEL_SIZE, save_path=work_dir+'/results')
 runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
-checkpoint_config = dict(interval=5, max_keep_ckpts=10)
+checkpoint_config = dict(interval=5)
 log_config = dict(
     interval=10,
     hooks=[
@@ -196,4 +199,4 @@ model = dict(
             rot_range=[-0.087266, 0.087266],
             scale_ratio_range=[.9, 1.1],
             translation_std=[.1, .1, .1]),
-        max_points=1000000)
+        max_points=500000)
