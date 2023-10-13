@@ -3,7 +3,8 @@ from .neucon_transforms import (NeuConToTensor,
                                 NeuConResizeImage, 
                                 NeuConIntrinsicsPoseToProjection, 
                                 NeuConRandomTransformSpace)
-from .atlas_transforms import (AtlasResizeImage, 
+from .atlas_transforms import (AtlasResizeImage,
+                               AtlasResizeImageRScan, 
                                AtlasIntrinsicsPoseToProjection, 
                                AtlasRandomTransformSpaceRecon,
                                AtlasTestTransformSpaceRecon, 
@@ -11,5 +12,5 @@ from .atlas_transforms import (AtlasResizeImage,
                                AtlasCollectData)
 from .fcaf3d_transforms import AtlasTransformSpaceDetection, TransformFeaturesBBoxes
 
-__all__ = ['AtlasResizeImage', 'AtlasIntrinsicsPoseToProjection', 'AtlasTransformSpaceRecon', 'AtlasRandomTransformSpaceDetection', 'AtlasTestTransformSpaceRecon', 'AtlasToTensor', 'AtlasCollectData',
+__all__ = ['AtlasResizeImage', 'AtlasResizeImageRScan', 'AtlasIntrinsicsPoseToProjection', 'AtlasTransformSpaceRecon', 'AtlasRandomTransformSpaceDetection', 'AtlasTestTransformSpaceRecon', 'AtlasToTensor', 'AtlasCollectData',
            'NeuConToTensor, NeuConCollectData', 'NeuConResizeImage', 'NeuConIntrinsicsPoseToProjection', 'NeuConRandomTransformSpace', 'TransformFeaturesBBoxes']

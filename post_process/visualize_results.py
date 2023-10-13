@@ -258,21 +258,30 @@ def generate_gt(box_path, save_path):
 
 def main():
     parser = argparse.ArgumentParser(description="NeuralRecon ScanNet Testing")
-    parser.add_argument("--data_path", type=str, default='/data1/sgl/ScanNet')
-    #parser.add_argument("--save_path", type=str, default='/data1/sgl/ray_marching_depth_4/results')
-    parser.add_argument("--save_path", type=str, default='/data1/sgl/ray_marching_points_result')
+    #parser.add_argument("--data_path", type=str, default='/data1/sgl/ScanNet')
+    #parser.add_argument("--save_path", type=str, default='/data1/sgl/ray_marching_points_result')
+    parser.add_argument("--data_path", type=str, default='/data1/sgl/3RScan')
+    parser.add_argument("--save_path", type=str, default='/home/sgl/kebab')
+
 
     args = parser.parse_args()
-    scene_ids = load_scene_ids(args.data_path, 'val')
+    #scene_ids = load_scene_ids(args.data_path, 'val')
     #scene_ids = ['scene0005_00', 'scene0041_00', 'scene0106_00', 'scene0158_00', 'scene0344_00','scene0065_00', 'scene0103_00', 'scene0137_02', 'scene0160_00', 'scene0258_00']
     #scene_ids = ['scene0011_00', 'scene0304_00', 'scene0568_00']
     #scene_ids = ['scene0011_00', 'scene0011_01', 'scene0015_00']
-    scene_ids = ['scene0011_00']
+    #scene_ids = ['scene0011_00']
+    scene_ids = ['0ad2d3a3-79e2-2212-9a51-9094be707ec2', 
+                 '0ad2d38f-79e2-2212-98d2-9b5060e5e9b5', 
+                 '0ad2d39b-79e2-2212-99ae-830c292cd079',
+                 '0ad2d382-79e2-2212-98b3-641bf9d552c1',
+                 '0ad2d386-79e2-2212-9b40-43d081db442a']
     #print(scene_ids)
     scene_ids.sort()
     for scene_id in scene_ids:
+        '''
         if not os.path.exists(os.path.join(args.save_path, scene_id)):
             continue
+        '''
         '''
         mesh_path = os.path.join(args.save_path, scene_id, scene_id + '_features.ply')
         bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_gt.npz')
@@ -294,14 +303,29 @@ def main():
         generate_gt(gt_path, gt_bbox_path)
         visualize_boxs(mesh_path,  meta_path, gt_bbox_path, gt_save_path, type='mesh')
         '''
-        
+        '''
         mesh_path = os.path.join(args.save_path, scene_id, scene_id + '_points.ply')
         bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_gt.npz')
         save_path = os.path.join(args.save_path, scene_id, scene_id + '_points_bbox.ply')
         meta_path = None
         visualize_boxs(mesh_path, meta_path, bbox_path, save_path, type='point')
+        '''
         
+        if not os.path.exists(os.path.join(args.save_path, scene_id)):
+            os.makedirs(os.path.join(args.save_path, scene_id))
+        gt_path = os.path.join(args.data_path, 'a', scene_id + '_aligned_bbox.npy')
+        bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_gt.npz')
+        generate_gt(gt_path, bbox_path)
         
+        mesh_path = os.path.join(args.data_path, 'atlas_tsdf', scene_id, 'mesh_04.ply')
+        save_path = os.path.join(args.save_path, scene_id, scene_id + '_mesh1.ply')
+        meta_path = None
+        visualize_boxs(mesh_path, meta_path, bbox_path, save_path, type='mesh')
+        
+        mesh_path = os.path.join(args.data_path, 'scans', scene_id, 'labels.instances.annotated.v2.ply')
+        save_path = os.path.join(args.save_path, scene_id, scene_id + '_mesh2.ply')
+        visualize_boxs(mesh_path, meta_path, bbox_path, save_path, type='mesh')
+
 
 
 if __name__ == "__main__":

@@ -6,10 +6,12 @@ from .models.neucon.neucon_head import NeuConHead
 from .models.neucon.neuralrecon import NeuralRecon
 
 from .datasets.atlas_dataset import AtlasScanNetDataset
+from .datasets.rscan_dataset import AtlasRScanDataset
 from .datasets.tsdf import TSDF
 from .datasets.neucon_dataset import NeuconScanNetDataset
 from .datasets.atlas_dataset_depth import AtlasScanNetDatasetDepth
 from .datasets.pipelines import (AtlasResizeImage, 
+                                 AtlasResizeImageRScan,
                                  AtlasIntrinsicsPoseToProjection, 
                                  AtlasRandomTransformSpaceRecon, 
                                  AtlasTestTransformSpaceRecon, 

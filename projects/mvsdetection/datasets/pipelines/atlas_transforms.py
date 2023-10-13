@@ -112,6 +112,32 @@ class AtlasResizeImage(object):
     def __repr__(self):
         return self.__class__.__name__ + '(size={0})'.format(self.size)
     
+    
+@PIPELINES.register_module()
+class AtlasResizeImageRScan(object):
+    """ Resize everything to given size.
+
+    Intrinsics are assumed to refer to image prior to resize.
+    After resize everything (ex: depth) should have the same intrinsics
+    """
+
+    def __init__(self, size):
+        self.size = size
+
+    def __call__(self, data):
+        for i in range(len(data['imgs'])):
+            im = data['imgs'][i]
+            intrinsics = data['intrinsics'][i]
+            w, h = im.size
+            im = im.resize(self.size, Image.BILINEAR)
+            intrinsics[0, :] /= (w / self.size[0])
+            intrinsics[1, :] /= (h / self.size[1])
+            data['imgs'][i] = np.array(im, dtype=np.float32)
+            data['intrinsics'][i] = intrinsics
+        return data
+
+    def __repr__(self):
+        return self.__class__.__name__ + '(size={0})'.format(self.size)
 
 @PIPELINES.register_module()
 class AtlasIntrinsicsPoseToProjection(object):

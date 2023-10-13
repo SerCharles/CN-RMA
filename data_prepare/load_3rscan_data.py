@@ -175,8 +175,9 @@ def export_one_scan(scan_name,
     unaligned_bboxes = unaligned_bboxes[bbox_mask, :]
     bbox_mask = np.in1d(aligned_bboxes[:, -1], OBJ_CLASS_IDS)
     aligned_bboxes = aligned_bboxes[bbox_mask, :]
-    assert unaligned_bboxes.shape[0] == aligned_bboxes.shape[0]
+    assert unaligned_bboxes.shape[0] == aligned_bboxes.shape[0]  
     print(f'Num of care instances: {unaligned_bboxes.shape[0]}')
+
 
     if max_num_point is not None:
         max_num_point = int(max_num_point)
@@ -187,17 +188,23 @@ def export_one_scan(scan_name,
             semantic_labels = semantic_labels[choices]
             instance_labels = instance_labels[choices]
 
+    if unaligned_bboxes.shape[0] <= 0:
+        print('Error! No care instances found!')
+        return False
+
     np.save(f'{output_filename_prefix}_vert.npy', mesh_vertices)
     np.save(f'{output_filename_prefix}_sem_label.npy', semantic_labels)
     np.save(f'{output_filename_prefix}_ins_label.npy', instance_labels)
     np.save(f'{output_filename_prefix}_unaligned_bbox.npy',unaligned_bboxes)
     np.save(f'{output_filename_prefix}_aligned_bbox.npy', aligned_bboxes)
     np.save(f'{output_filename_prefix}_axis_align_matrix.npy', axis_align_matrix)
+    return True
 
 
 def batch_export(max_num_point,
                  output_folder,
                  scan_names_file,
+                 save_names_file,
                  label_map_file,
                  data_dir):
     if not os.path.exists(output_folder):
@@ -205,6 +212,7 @@ def batch_export(max_num_point,
         os.mkdir(output_folder)
 
     scan_names = [line.rstrip() for line in open(scan_names_file)]
+    save_names = []
     for scan_name in scan_names:
         print('-' * 20 + 'begin')
         print(datetime.datetime.now())
@@ -214,12 +222,16 @@ def batch_export(max_num_point,
             print('File already exists. skipping.')
             print('-' * 20 + 'done')
             continue
-        #try:
-        export_one_scan(scan_name, output_filename_prefix, max_num_point,
-                            label_map_file, data_dir)
-        #except Exception:
-        #    print(f'Failed export scan: {scan_name}')
+        if export_one_scan(scan_name, output_filename_prefix, max_num_point, label_map_file, data_dir):
+            save_names.append(scan_name)
         print('-' * 20 + 'done')
+    with open(save_names_file, 'w') as f:
+        for i in range(len(save_names)):
+            item = save_names[i]
+            if i != len(save_names) - 1:
+                f.write("%s\n" % item)
+            else:
+                f.write("%s" % item)
 
 
 def main():
@@ -230,10 +242,9 @@ def main():
         help='The maximum number of the points.')
     parser.add_argument(
         '--output_folder',
-        default='/data1/sgl/3RScan/scannet_instance_data',
-        help='output folder of the result.')
+        default='/data1/sgl/3RScan/3rscan_instance_data')
     parser.add_argument(
-        '--data_path', default='/data1/sgl/3RScan/scans', help='scannet data directory.')
+        '--data_path', default='/data1/sgl/3RScan/scans')
     parser.add_argument(
         '--label_map_file',
         default='/data1/sgl/3RScan/meta_data/3rscan_mapping.tsv',
@@ -246,17 +257,27 @@ def main():
         '--test_scan_names_file',
         default='/data1/sgl/3RScan/meta_data/val.txt',
         help='The path of the file that stores the scan names.')
+    parser.add_argument(
+        '--train_save_names_file',
+        default='/data1/sgl/3RScan/meta_data/3rscan_train.txt',
+        help='The path of the file that stores the scan names.')
+    parser.add_argument(
+        '--test_save_names_file',
+        default='/data1/sgl/3RScan/meta_data/3rscan_val.txt',
+        help='The path of the file that stores the scan names.')
     args = parser.parse_args()
     batch_export(
         args.max_num_point,
         args.output_folder,
         args.train_scan_names_file,
+        args.train_save_names_file,
         args.label_map_file,
         args.data_path)
     batch_export(
         args.max_num_point,
         args.output_folder,
         args.test_scan_names_file,
+        args.test_save_names_file,
         args.label_map_file,
         args.data_path)
 
