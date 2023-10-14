@@ -35,7 +35,8 @@ dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = '/home/sgl/work_dirs_atlas/test'
 save_path = work_dir + '/results'
-load_from = '/home/sgl/work_dirs_atlas/switch.pth'
+#load_from = '/home/sgl/work_dirs_atlas/switch.pth'
+load_from = None
 resume_from = None
 workflow = [('train', 1)]
 total_epochs = 200

@@ -38,15 +38,14 @@ class AtlasRScanDataset(Custom3DDataset):
 
     def read_intrinsic(self, data_path):
         intrinsic = np.eye(4)
-        if os.path.exists(data_path):
-            lines = open(data_path).readlines()
-            for line in lines:
-                if 'm_calibrationColorIntrinsic' in line:
-                    intrinsic = [
-                        float(x)
-                        for x in line.rstrip().strip('m_calibrationColorIntrinsic = ').split(' ')
-                    ]
-                    break    
+        lines = open(data_path).readlines()
+        for line in lines:
+            if 'm_calibrationColorIntrinsic' in line:
+                intrinsic = [
+                    float(x)
+                    for x in line.rstrip().strip('m_calibrationColorIntrinsic = ').split(' ')
+                ]
+                break    
         intrinsic = np.array(intrinsic, dtype=np.float32).reshape((4, 4))
         return intrinsic
             
@@ -65,7 +64,7 @@ class AtlasRScanDataset(Custom3DDataset):
         if self.num_frames <= 0 or self.num_frames > len(total_image_ids):
             image_ids = total_image_ids
         elif self.select_type == 'random':
-                image_ids = random.sample(total_image_ids, self.num_frames)
+            image_ids = random.sample(total_image_ids, self.num_frames)
         elif self.select_type == 'unit':
             m = len(total_image_ids)
             n = self.num_frames
@@ -84,7 +83,7 @@ class AtlasRScanDataset(Custom3DDataset):
             vid = str(int(vid)).zfill(6)
             img_path = os.path.join(self.data_root, 'scans', scene, 'sequence', 'frame-' + vid + '.color.jpg')
             extrinsic_path = os.path.join(self.data_root, 'scans', scene, 'sequence', 'frame-' + vid + '.pose.txt')
-            intrinsic_path = os.path.join(self.data_root, 'posed_images', scene, 'sequence', '_info.txt')
+            intrinsic_path = os.path.join(self.data_root, 'scans', scene, 'sequence', '_info.txt')
             
             img = Image.open(img_path)
             intrinsic = self.read_intrinsic(intrinsic_path)[:3, :3]
