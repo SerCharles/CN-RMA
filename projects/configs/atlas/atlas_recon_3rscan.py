@@ -39,7 +39,7 @@ save_path = work_dir + '/results'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]
-total_epochs = 200
+total_epochs = 600
 evaluation = dict(interval=3000, voxel_size=VOXEL_SIZE, save_path=work_dir+'/results')
 runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
 checkpoint_config = dict(interval=10)
@@ -96,7 +96,7 @@ data = dict(
     test=dict(
         type='AtlasRScanDataset',
         data_root='./data/3rscan',
-        ann_file='./data/3rscan/3rscan_infos_val.pkl',
+        ann_file='./data/3rscan/3rscan_infos_train.pkl',
         classes=class_names, 
         pipeline=test_pipeline, 
         test_mode=True,

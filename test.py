@@ -20,9 +20,9 @@ import projects.mvsdetection
 def parse_args():
     parser = argparse.ArgumentParser(
         description='MMDet test (and eval) a model')
-    parser.add_argument('--config', help='test config file path', type=str, default='projects/configs/atlas/atlas_ray_marching.py')
-    parser.add_argument('--checkpoint', help='checkpoint file', type=str, default='/home/sgl/work_dirs_atlas/ray_marching_base_depth.pth')
-    parser.add_argument('--work-dir', help='the dir to save logs and models', type=str, default='/home/sgl/work_dirs_atlas/atlas_ray_marching_depth')
+    parser.add_argument('--config', help='test config file path', type=str, default='projects/configs/atlas/atlas_recon_3rscan.py')
+    parser.add_argument('--checkpoint', help='checkpoint file', type=str, default='/home/sgl/work_dirs_atlas/recon_3rscan/best_500.pth')
+    parser.add_argument('--work-dir', help='the dir to save logs and models', type=str, default='/home/sgl/work_dirs_atlas/recon_3rscan')
     parser.add_argument('--out', help='output result file in pickle format')
     parser.add_argument(
         '--fuse-conv-bn',

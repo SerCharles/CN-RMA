@@ -239,7 +239,13 @@ def generate_gt(box_path, save_path):
         save_path [str]: [the saving path]
     '''
     bboxes_data = np.load(box_path)
-    bboxes = bboxes_data[:, 0:6]
+    #if bboxes_data.shape[1] == 7:
+    if True:
+        bboxes = bboxes_data[:, 0:6]
+        zeros = np.zeros((bboxes_data.shape[0], 1))
+        bboxes = np.concatenate((bboxes, zeros), axis=1)
+    else:
+        bboxes = bboxes_data[:, 0:7]
     classes = bboxes_data[:, -1].astype(np.int32).tolist()
     cat_ids = np.array([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 24, 28, 33, 34, 36, 39])
     cat_ids2class = {
@@ -251,8 +257,7 @@ def generate_gt(box_path, save_path):
         for i in range(len(classes))
     ])
     scores = np.ones((bboxes_data.shape[0]))
-    zeros = np.zeros((bboxes_data.shape[0], 1))
-    bboxes = np.concatenate((bboxes, zeros), axis=1)
+
     np.savez(save_path, boxes=bboxes, scores=scores, labels=labels)
     
 
@@ -261,7 +266,7 @@ def main():
     #parser.add_argument("--data_path", type=str, default='/data1/sgl/ScanNet')
     #parser.add_argument("--save_path", type=str, default='/data1/sgl/ray_marching_points_result')
     parser.add_argument("--data_path", type=str, default='/data1/sgl/3RScan')
-    parser.add_argument("--save_path", type=str, default='/home/sgl/kebab')
+    parser.add_argument("--save_path", type=str, default='/home/sgl/obb')
 
 
     args = parser.parse_args()
@@ -270,11 +275,16 @@ def main():
     #scene_ids = ['scene0011_00', 'scene0304_00', 'scene0568_00']
     #scene_ids = ['scene0011_00', 'scene0011_01', 'scene0015_00']
     #scene_ids = ['scene0011_00']
-    scene_ids = ['0ad2d3a3-79e2-2212-9a51-9094be707ec2', 
+    '''scene_ids = ['0ad2d3a3-79e2-2212-9a51-9094be707ec2', 
                  '0ad2d38f-79e2-2212-98d2-9b5060e5e9b5', 
                  '0ad2d39b-79e2-2212-99ae-830c292cd079',
                  '0ad2d382-79e2-2212-98b3-641bf9d552c1',
-                 '0ad2d386-79e2-2212-9b40-43d081db442a']
+                 '0ad2d386-79e2-2212-9b40-43d081db442a']'''
+    
+    with open('/data1/sgl/3RScan/meta_data/3rscan_val.txt', 'r') as f:
+        scene_ids = f.read().split('\n')
+
+    
     #print(scene_ids)
     scene_ids.sort()
     for scene_id in scene_ids:
@@ -313,7 +323,7 @@ def main():
         
         if not os.path.exists(os.path.join(args.save_path, scene_id)):
             os.makedirs(os.path.join(args.save_path, scene_id))
-        gt_path = os.path.join(args.data_path, 'a', scene_id + '_aligned_bbox.npy')
+        gt_path = os.path.join(args.data_path, '3rscan_instance_data', scene_id + '_aligned_bbox.npy')
         bbox_path = os.path.join(args.save_path, scene_id, scene_id + '_gt.npz')
         generate_gt(gt_path, bbox_path)
         

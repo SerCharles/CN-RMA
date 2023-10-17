@@ -45,7 +45,7 @@ def process_reconstruction(data_path, save_path):
         
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data_path", type=str, default='/data/shenguanlin/atlas_mine/results')
-    parser.add_argument("--save_path", type=str, default='/data/shenguanlin/ScanNet/atlas_instance_data')
+    parser.add_argument("--data_path", type=str, default='/home/sgl/work_dirs_atlas/recon_3rscan/results')
+    parser.add_argument("--save_path", type=str, default='/data1/sgl/3RScan/recon_instance_data_aabb')
     args = parser.parse_args()
     process_reconstruction(args.data_path, args.save_path)

@@ -237,7 +237,7 @@ class Atlas(nn.Module):
             if not os.path.exists(os.path.join(self.save_path, scene_id)):
                 os.makedirs(os.path.join(self.save_path, scene_id))
             tsdf_pred.save(os.path.join(self.save_path, scene_id, scene_id + '.npz'))
-            mesh_pred.export(os.path.join(self.save_path, scene_id, scene_id + '.ply'))
+            mesh_pred.export(os.path.join(self.save_path, scene_id, scene_id + '.ply'), vertex_normal=True)
             
         return [{}]
 

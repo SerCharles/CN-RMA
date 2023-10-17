@@ -7,6 +7,7 @@
 """Load Scannet scenes with vertices and ground truth labels for semantic and
 instance segmentations."""
 import argparse
+from math import *
 import inspect
 import json
 import numpy as np
@@ -58,7 +59,7 @@ def read_segmentation(filename):
     return seg_to_verts, num_verts
 
 
-def extract_bbox(mesh_vertices, object_id_to_segs, object_id_to_label_id,
+def extract_aabb_bbox(mesh_vertices, object_id_to_segs, object_id_to_label_id,
                  instance_ids):
     num_instances = len(np.unique(list(object_id_to_segs.keys())))
     instance_bboxes = np.zeros((num_instances, 7))
@@ -78,12 +79,35 @@ def extract_bbox(mesh_vertices, object_id_to_segs, object_id_to_label_id,
         instance_bboxes[i, :] = bbox
     return instance_bboxes
 
+def extract_obb_bbox(agg_file, label_map):
+    with open(agg_file) as f:
+        data = json.load(f)
+        num_objects = len(data['segGroups'])
+        obb_bboxes = []
+        for i in range(num_objects):
+            centers = data['segGroups'][i]['obb']['centroid']
+            lengths = data['segGroups'][i]['obb']['axesLengths']
+            #rotation_matrix = np.array(data['segGroups'][i]['obb']['normalizedAxes'], dtype=np.float32).reshape(3, 3)
+            #rotation_matrix = np.linalg.inv(rotation_matrix)
+            #angle = acos(rotation_matrix[0, 0])
+            angle = pi / 2 - acos(data['segGroups'][i]['obb']['normalizedAxes'][6])
+            label = data['segGroups'][i]['label']
+            label_id = label_map[label]
+            #obb_bbox = [centers[0], centers[2], centers[1], lengths[0], lengths[2], lengths[1], angle, label_id]
+            obb_bbox = [centers[0], centers[1], centers[2], lengths[0], lengths[2], lengths[1], angle, label_id]
+            obb_bboxes.append(obb_bbox)
+        obb_bboxes = np.array(obb_bboxes, dtype=np.float32)
+    return obb_bboxes
+        
+        
+
 
 def export(mesh_file,
            agg_file,
            seg_file,
            label_map_file,
-           output_file=None):
+           output_file=None,
+           bbox_type='aabb'):
     """Export original files to vert, ins_label, sem_label and bbox file.
 
     Args:
@@ -131,10 +155,13 @@ def export(mesh_file,
             instance_ids[verts] = object_id
             if object_id not in object_id_to_label_id:
                 object_id_to_label_id[object_id] = label_ids[verts][0]
-    unaligned_bboxes = extract_bbox(mesh_vertices, object_id_to_segs,
-                                        object_id_to_label_id, instance_ids)
-    aligned_bboxes = extract_bbox(aligned_mesh_vertices, object_id_to_segs,
-                                      object_id_to_label_id, instance_ids)
+    
+    if bbox_type == 'aabb':
+        unaligned_bboxes = extract_aabb_bbox(mesh_vertices, object_id_to_segs, object_id_to_label_id, instance_ids)
+        aligned_bboxes = extract_aabb_bbox(aligned_mesh_vertices, object_id_to_segs, object_id_to_label_id, instance_ids)
+    else:
+        unaligned_bboxes = extract_obb_bbox(agg_file, label_map)
+        aligned_bboxes = unaligned_bboxes.copy()
 
     if output_file is not None:
         np.save(output_file + '_vert.npy', mesh_vertices)
@@ -154,14 +181,15 @@ def export_one_scan(scan_name,
                     output_filename_prefix,
                     max_num_point,
                     label_map_file,
-                    data_path):
+                    data_path,
+                    bbox_type):
     mesh_file = osp.join(data_path, scan_name, 'labels.instances.annotated.v2.ply')
     agg_file = osp.join(data_path, scan_name, 'semseg.v2.json')
     seg_file = osp.join(data_path, scan_name, 'mesh.refined.0.010000.segs.v2.json')
     # includes axisAlignment info for the train set scans.
     mesh_vertices, semantic_labels, instance_labels, unaligned_bboxes, \
         aligned_bboxes, instance2semantic, axis_align_matrix = export(
-            mesh_file, agg_file, seg_file, label_map_file, None)
+            mesh_file, agg_file, seg_file, label_map_file, None, bbox_type)
 
     mask = np.logical_not(np.in1d(semantic_labels, DONOTCARE_CLASS_IDS))
     mesh_vertices = mesh_vertices[mask, :]
@@ -206,7 +234,8 @@ def batch_export(max_num_point,
                  scan_names_file,
                  save_names_file,
                  label_map_file,
-                 data_dir):
+                 data_dir,
+                 bbox_type):
     if not os.path.exists(output_folder):
         print(f'Creating new data folder: {output_folder}')
         os.mkdir(output_folder)
@@ -222,7 +251,7 @@ def batch_export(max_num_point,
             print('File already exists. skipping.')
             print('-' * 20 + 'done')
             continue
-        if export_one_scan(scan_name, output_filename_prefix, max_num_point, label_map_file, data_dir):
+        if export_one_scan(scan_name, output_filename_prefix, max_num_point, label_map_file, data_dir, bbox_type):
             save_names.append(scan_name)
         print('-' * 20 + 'done')
     with open(save_names_file, 'w') as f:
@@ -265,6 +294,10 @@ def main():
         '--test_save_names_file',
         default='/data1/sgl/3RScan/meta_data/3rscan_val.txt',
         help='The path of the file that stores the scan names.')
+    parser.add_argument(
+        '--bbox_type',
+        default='obb',
+        help='The path of the file that stores the scan names.')
     args = parser.parse_args()
     batch_export(
         args.max_num_point,
@@ -272,14 +305,16 @@ def main():
         args.train_scan_names_file,
         args.train_save_names_file,
         args.label_map_file,
-        args.data_path)
+        args.data_path,
+        args.bbox_type)
     batch_export(
         args.max_num_point,
         args.output_folder,
         args.test_scan_names_file,
         args.test_save_names_file,
         args.label_map_file,
-        args.data_path)
+        args.data_path,
+        args.bbox_type)
 
 
 if __name__ == '__main__':
