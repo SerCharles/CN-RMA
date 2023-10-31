@@ -27,16 +27,15 @@ import trimesh
 import open3d as o3d
 import ray
 
-#torch.multiprocessing.set_sharing_strategy('file_system')
+torch.multiprocessing.set_sharing_strategy('file_system')
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="NeuralRecon ScanNet Testing")
-    #parser.add_argument("--result_path", type=str, default='/data/shenguanlin/work_dirs_atlas/atlas_50_16016064_bn/results')
-    #parser.add_argument("--data_path", type=str, default='/data/shenguanlin/ScanNet')
-    parser.add_argument("--result_path", type=str, default='/home/sgl/work_dirs_atlas/recon_3rscan/results')
-    parser.add_argument("--data_path", type=str, default='/data1/sgl/3RScan')
-
+    parser.add_argument('--dataset', type=str, default='scannet')
+    parser.add_argument("--data_path", type=str, default='/data1/sgl/ScanNet')
+    parser.add_argument("--result_path", type=str, default='/home/sgl/work_dirs_atlas/atlas_ray_marching_300_005/results')
+    parser.add_argument("--axis_align", type=int, default=1)
 
     # ray config
     parser.add_argument('--n_proc', type=int, default=2, help='#processes launched to process scenes.')
@@ -150,23 +149,28 @@ def display_results(fname):
         print('%10s %0.3f' % (k, v))
 
 def process(scene_id):
-    '''
-    axis_align_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '.txt')
-    axis_align_matrix = read_axis_align_matrix(axis_align_path)
-    pred_mesh_path = os.path.join(args.result_path, scene_id, scene_id + '.ply')
-    gt_mesh_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '_vh_clean_2.ply')
-    '''
-    pred_mesh_path = os.path.join(args.result_path, scene_id, scene_id + '.ply')
-    gt_mesh_path = os.path.join(args.data_path, 'scans', scene_id, 'labels.instances.annotated.v2.ply')
+    if args.dataset == 'scannet':
+        if args.axis_align:
+            axis_align_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '.txt')
+            axis_align_matrix = read_axis_align_matrix(axis_align_path)
+        else:
+            axis_align_matrix = None
+        pred_mesh_path = os.path.join(args.result_path, scene_id, scene_id + '.ply')
+        gt_mesh_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '_vh_clean_2.ply')
+    elif args.dataset == '3rscan':
+        pred_mesh_path = os.path.join(args.result_path, scene_id + '.ply')
+        gt_mesh_path = os.path.join(args.data_path, 'scans', scene_id, 'labels.instances.annotated.v2.ply')
+        axis_align_matrix = None
     
     pcd_pred = o3d.io.read_point_cloud(pred_mesh_path)
     pcd_gt = o3d.io.read_point_cloud(gt_mesh_path)
-    #pcd_gt.transform(axis_align_matrix)
+    if axis_align_matrix is not None:
+        pcd_gt.transform(axis_align_matrix)
     metrics = eval_mesh(pcd_pred, pcd_gt)
     print(scene_id, metrics)
     return scene_id, metrics
 
-#@ray.remote(num_cpus=args.num_workers + 1, num_gpus=(1 / args.n_proc))
+@ray.remote(num_cpus=args.num_workers + 1, num_gpus=(1 / args.n_proc))
 def process_with_single_worker(info_files):
     metrics = {}
     for i, info_file in enumerate(info_files):
@@ -187,14 +191,14 @@ def split_list(_list, n):
 def main():
     all_proc = args.n_proc * args.n_gpu
 
-    #ray.init(num_cpus=all_proc * (args.num_workers + 1), num_gpus=args.n_gpu)
-
-    #scene_names_file = os.path.join(args.data_path, 'meta_data', 'scannetv2_val.txt')
-    scene_names_file = os.path.join(args.data_path, 'meta_data', '3rscan_val.txt')
+    ray.init(num_cpus=all_proc * (args.num_workers + 1), num_gpus=args.n_gpu)
+    if args.dataset == 'scannet':
+        scene_names_file = os.path.join(args.data_path, 'meta_data', 'scannetv2_val.txt')
+    elif args.dataset == '3rscan':
+        scene_names_file = os.path.join(args.data_path, 'meta_data', '3rscan_val.txt')
     scene_names = [line.rstrip() for line in open(scene_names_file)]
     scene_names.sort()
     
-    '''
     info_files = split_list(scene_names, all_proc)
     ray_worker_ids = []
     for w_idx in range(all_proc):
@@ -207,8 +211,7 @@ def main():
     metrics = {}
     for r in results:
         metrics.update(r)
-    '''
-    metrics = process_with_single_worker(scene_names)
+    #metrics = process_with_single_worker(scene_names)
     
     rslt_file = os.path.join(args.result_path, 'metrics.json')
     json.dump(metrics, open(rslt_file, 'w'))

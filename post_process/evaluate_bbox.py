@@ -7,7 +7,7 @@ from mmdet3d.core.bbox import get_box_type
 from mmdet3d.core.bbox import DepthInstance3DBoxes
 from glob import glob 
 
-def evaluate_bbox(data_path, result_path):
+def evaluate_bbox(dataset, data_path, result_path, postfix):
     iou_thr=(0.25, 0.5)
     box_type_3d, box_mode_3d = get_box_type('Depth')
     classes = ['cabinet', 'bed', 'chair', 'sofa', 'table', 'door', 'window',
@@ -23,19 +23,13 @@ def evaluate_bbox(data_path, result_path):
     }
     
     scene_files = os.listdir(result_path)
-    '''
-    scene_ids = []
-    for scene_file in scene_files:
-        if scene_file[:5] == 'scene':
-            scene_ids.append(scene_file)
-    '''
     scene_ids = scene_files
     
     scene_ids.sort()
             
     results = [] 
     for scene_id in scene_ids:
-        box_path = os.path.join(result_path, scene_id, scene_id + '_fcaf3d_retrain.npz')
+        box_path = os.path.join(result_path, scene_id, scene_id + postfix + '.npz')
         result = {} 
         bbox_data = np.load(box_path)
         bboxes = bbox_data['boxes']
@@ -54,8 +48,11 @@ def evaluate_bbox(data_path, result_path):
     gt_annos = [] 
     for scene_id in scene_ids:
         gt_anno = {}
-        #box_file = os.path.join(data_path, 'scannet_instance_data', scene_id + '_aligned_bbox.npy')
-        box_file = os.path.join('/data1/sgl/3RScan/recon_instance_data_aabb', scene_id + '_aligned_bbox.npy')
+        if dataset == 'scannet':
+        
+            box_file = os.path.join(data_path, 'scannet_instance_data', scene_id + '_aligned_bbox.npy')
+        elif dataset == '3rscan':
+            box_file = os.path.join(data_path, 'recon_instance_data_aabb', scene_id + '_aligned_bbox.npy')
         aligned_box_label = np.load(box_file)
         gt_num = aligned_box_label.shape[0]
         gt_anno['gt_num'] = gt_num 
@@ -81,7 +78,9 @@ def evaluate_bbox(data_path, result_path):
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset", type=str, default='scannet')
     parser.add_argument("--data_path", type=str, default='/data1/sgl/ScanNet')
-    parser.add_argument("--result_path", type=str, default='/home/sgl/work_dirs_atlas/fcaf3d_3rscan/results')
+    parser.add_argument("--result_path", type=str, default='/home/sgl/work_dirs_atlas/atlas_baseline_scannet')
+    parser.add_argument("--postfix", type=str, default='_atlas_mine')
     args = parser.parse_args()
-    evaluate_bbox(args.data_path, args.result_path)
+    evaluate_bbox(args.dataset, args.data_path, args.result_path, args.postfix)

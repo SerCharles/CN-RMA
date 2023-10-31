@@ -60,11 +60,7 @@ def save_bbox(args, scene_id, bbox_results):
 
 def nms_bboxes(args):
     scene_files = os.listdir(args.result_path)
-    scene_ids = []
-    for scene_file in scene_files:
-        raw_path = os.path.join(args.result_path, scene_file, scene_file + '_bbox_raw.npz')
-        if scene_file[:5] == 'scene' and os.path.exists(raw_path):
-                scene_ids.append(scene_file)
+    scene_ids = scene_files
     scene_ids.sort()
     
     for scene_id in scene_ids:
@@ -78,7 +74,7 @@ def nms_bboxes(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--result_path", type=str, default='/home/sgl/work_dirs_atlas/ray_marching_300_010/results')
+    parser.add_argument("--result_path", type=str, default='/home/sgl/work_dirs_atlas/atlas_ray_marching_300_005/results')
     parser.add_argument("--postfix", type=str, default='_atlas_bbox.npz')
     args = parser.parse_args()
     nms_bboxes(args)

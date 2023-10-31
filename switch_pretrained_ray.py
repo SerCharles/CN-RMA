@@ -2,7 +2,7 @@ import torch
 import pytorch_lightning
 import json
 model_atlas = torch.load('/home/sgl/work_dirs_atlas/final.ckpt')['state_dict']
-model_ray = torch.load('/data1/sgl/ray_marching_300_002/epoch_12.pth')['state_dict']
+model_ray = torch.load('/data1/sgl/brute_force/epoch_12.pth')['state_dict']
 model_mine = torch.load('/home/sgl/work_dirs_atlas/pipeline_link.pth')['state_dict']
 
 atlas = {}
@@ -99,5 +99,5 @@ for key in model_mine.keys():
 
 model_mine_full = torch.load('/home/sgl/work_dirs_atlas/pipeline_link.pth')
 model_mine_full['state_dict'] = new_state_dict
-torch.save(model_mine_full, '/home/sgl/work_dirs_atlas/ray_marching_neus_300_002.pth')
+torch.save(model_mine_full, '/home/sgl/work_dirs_atlas/brute_force.pth')
 

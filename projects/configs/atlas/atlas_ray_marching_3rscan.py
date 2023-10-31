@@ -24,18 +24,18 @@ LOSS_WEIGHT_DETECTION = 1.0
 
 optimizer = dict(type='AdamW', lr=0.001, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=dict(max_norm=10, norm_type=2))
-lr_config = dict(policy='step', warmup=None, step=[80, 110])
+lr_config = dict(policy='step', warmup=None, step=[240, 330])
 
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = '/home/sgl/work_dirs_atlas/atlas_ray_marching_depth_2'
+work_dir = '/home/sgl/work_dirs_atlas/ray_marching_3rscan'
 save_path = work_dir + '/results'
-load_from = '/home/sgl/work_dirs_atlas/ray_marching_depth_2.pth'
+load_from = '/home/sgl/work_dirs_atlas/3rscan_ray_aabb.pth'
 resume_from = None
 
 
 workflow = [('train', 1)]
-total_epochs = 120
+total_epochs = 360
 evaluation = dict(interval=3000, voxel_size=VOXEL_SIZE, save_path=work_dir+'/results')
 runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
 checkpoint_config = dict(interval=10)
@@ -48,7 +48,7 @@ log_config = dict(
 
 
 train_pipeline = [
-    dict(type='AtlasResizeImage', size=((640, 480))),
+    dict(type='AtlasResizeImageRScan', size=((640, 480))),
     dict(type='AtlasToTensor'),
     dict(type='AtlasTransformSpaceDetection', voxel_dim=VOXEL_DIM_TRAIN, 
          origin=[0, 0, 0], test=False, mode='middle'),
@@ -57,7 +57,7 @@ train_pipeline = [
 ]
 
 test_pipeline = [
-    dict(type='AtlasResizeImage', size=((640, 480))),
+    dict(type='AtlasResizeImageRScan', size=((640, 480))),
     dict(type='AtlasToTensor'),
     dict(type='AtlasTransformSpaceDetection', voxel_dim=VOXEL_DIM_TEST, 
          origin=[0, 0, 0], test=True, mode='origin'),    
@@ -71,9 +71,9 @@ data = dict(
     train_dataloader=dict(shuffle=True),
     test_dataloader=dict(shuffle=False),
     train=dict(
-        type='AtlasScanNetDataset',
-        data_root='./data/scannet',
-        ann_file='./data/scannet/scannet_infos_train.pkl',
+        type='AtlasRScanDataset',
+        data_root='./data/3rscan',
+        ann_file='./data/3rscan/3rscan_infos_train.pkl',
         classes=class_names, 
         pipeline=train_pipeline, 
         test_mode=False,
@@ -81,9 +81,9 @@ data = dict(
         voxel_size=VOXEL_SIZE,
         select_type='random'),
     val=dict(
-        type='AtlasScanNetDataset',
-        data_root='./data/scannet',
-        ann_file='./data/scannet/scannet_infos_val.pkl',
+        type='AtlasRScanDataset',
+        data_root='./data/3rscan',
+        ann_file='./data/3rscan/3rscan_infos_val.pkl',
         classes=class_names, 
         pipeline=test_pipeline, 
         test_mode=True,
@@ -91,9 +91,9 @@ data = dict(
         voxel_size=VOXEL_SIZE,
         select_type='random'),
     test=dict(
-        type='AtlasScanNetDataset',
-        data_root='./data/scannet',
-        ann_file='./data/scannet/scannet_infos_val.pkl',
+        type='AtlasRScanDataset',
+        data_root='./data/3rscan',
+        ann_file='./data/3rscan/3rscan_infos_val.pkl',
         classes=class_names, 
         pipeline=test_pipeline, 
         test_mode=True,
@@ -120,9 +120,8 @@ model = dict(
     use_batchnorm_test=USE_BATCHNORM_TEST,
     use_tsdf=USE_TSDF,
     save_path=save_path,
-    ray_marching_type='depth',
-    neus_threshold=None,
-    depth_points=2, 
+    middle_type='points',
+    ray_marching_type='neus',
     backbone2d=dict(
         type='FPNDetectron',
         bottom_up_cfg=dict(
@@ -193,11 +192,10 @@ model = dict(
             nms_pre=1000,
             iou_thr=.5,
             score_thr=.01)),
-        max_points=500000,
-        use_feature_transform=True,
         feature_transform=dict(
             flip_ratio_horizontal=0.5,
             flip_ratio_vertical=0.5,
             rot_range=[-0.087266, 0.087266],
             scale_ratio_range=[.9, 1.1],
-            translation_std=[.1, .1, .1]))
+            translation_std=[.1, .1, .1]),
+        max_points=500000)

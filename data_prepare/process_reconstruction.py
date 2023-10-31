@@ -30,14 +30,23 @@ def read_mesh_vertices(filename):
     return vertices
 
 def process_reconstruction(data_path, save_path):
+    '''
     all_files = os.listdir(data_path)
     scene_ids = []
     for file_name in all_files:
         scene_id = file_name.split(os.sep)[-1]
         scene_ids.append(scene_id)
+    '''
+    file_names = [_ for _ in os.listdir(data_path) if _.endswith(".ply")]
+    scene_ids = [] 
+    for scene in file_names:
+        scene_id = scene.split('.')[0]
+        scene_ids.append(scene_id)
     scene_ids.sort() 
+    
     for scene_id in scene_ids:
-        input_path = os.path.join(data_path, scene_id, scene_id + '.ply')
+        #input_path = os.path.join(data_path, scene_id, scene_id + '.ply')
+        input_path = os.path.join(data_path, scene_id + '.ply')
         vertices = read_mesh_vertices(input_path)
         output_path = os.path.join(save_path, scene_id + '_vert.npy')
         np.save(output_path, vertices)
@@ -45,7 +54,7 @@ def process_reconstruction(data_path, save_path):
         
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data_path", type=str, default='/home/sgl/work_dirs_atlas/recon_3rscan/results')
-    parser.add_argument("--save_path", type=str, default='/data1/sgl/3RScan/recon_instance_data_aabb')
+    parser.add_argument("--data_path", type=str, default='/home/sgl/work_dirs_atlas/3rscan_neucon_recon/results')
+    parser.add_argument("--save_path", type=str, default='/data1/sgl/3rscan_neucon_instances_aabb')
     args = parser.parse_args()
     process_reconstruction(args.data_path, args.save_path)
