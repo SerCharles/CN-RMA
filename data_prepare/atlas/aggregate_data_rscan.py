@@ -143,20 +143,16 @@ def create_indoor_info_file(data_path, save_path, workers=4):
 
     train_filename = os.path.join(save_path, '3rscan_infos_train.pkl')
     val_filename = os.path.join(save_path, '3rscan_infos_val.pkl')
-    #test_filename = os.path.join(save_path, '3rscan_infos_test.pkl')
     train_dataset = RScanData(root_path=data_path, split='train')
     val_dataset = RScanData(root_path=data_path, split='val')
-    #test_dataset = RScanData(root_path=data_path, split='test')
     
-    infos_train = train_dataset.get_infos(num_workers=workers, has_label=True)
+    infos_train = train_dataset.get_infos(num_workers=workers, has_label=False)
     mmcv.dump(infos_train, train_filename, 'pkl')
     print(f'3rscan info train file is saved to {train_filename}')
     infos_val = val_dataset.get_infos(num_workers=workers, has_label=True)
     mmcv.dump(infos_val, val_filename, 'pkl')
     print(f'3rscan info val file is saved to {val_filename}')
-    #infos_test = test_dataset.get_infos(num_workers=workers, has_label=False)
-    #mmcv.dump(infos_test, test_filename, 'pkl')
-    #print(f'3rscan info test file is saved to {test_filename}')
+
 
 
 if __name__ == '__main__':

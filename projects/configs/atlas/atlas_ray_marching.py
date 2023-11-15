@@ -28,9 +28,9 @@ lr_config = dict(policy='step', warmup=None, step=[80, 110])
 
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = '/home/sgl/work_dirs_atlas/atlas_ray_marching_depth_2'
+work_dir = '/home/sgl/work_dirs_atlas/atlas_ray_marching_300_005'
 save_path = work_dir + '/results'
-load_from = '/home/sgl/work_dirs_atlas/ray_marching_depth_2.pth'
+load_from = '/home/sgl/work_dirs_atlas/ray_marching_neus_300_005.pth'
 resume_from = None
 
 
@@ -120,9 +120,9 @@ model = dict(
     use_batchnorm_test=USE_BATCHNORM_TEST,
     use_tsdf=USE_TSDF,
     save_path=save_path,
-    ray_marching_type='depth',
-    neus_threshold=None,
-    depth_points=2, 
+    ray_marching_type='neus',
+    neus_threshold=0.05,
+    depth_points=None, 
     backbone2d=dict(
         type='FPNDetectron',
         bottom_up_cfg=dict(

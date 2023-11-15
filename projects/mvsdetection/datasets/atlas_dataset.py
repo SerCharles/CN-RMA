@@ -102,6 +102,9 @@ class AtlasScanNetDataset(Custom3DDataset):
     def get_ann_info(self, index):
         info = self.data_infos[index]
         
+        if 'annos' not in info.keys():
+            return None
+        
         if 'axis_align_matrix' in info['annos'].keys():
             axis_align_matrix = info['annos']['axis_align_matrix'].astype(np.float32)
         else:

@@ -33,14 +33,14 @@ lr_config = dict(policy='step', warmup=None, step=[300], gamma=0.1)
 #find_unused_parameters = True
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = '/home/sgl/work_dirs_atlas/recon_3rscan'
+work_dir = '/home/sgl/work_dirs_atlas/3rscan_test'
 save_path = work_dir + '/results'
 #load_from = '/home/sgl/work_dirs_atlas/switch.pth'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]
-total_epochs = 600
-evaluation = dict(interval=3000, voxel_size=VOXEL_SIZE, save_path=work_dir+'/results')
+total_epochs = 200
+evaluation = dict(interval=300, voxel_size=VOXEL_SIZE, save_path=work_dir+'/results')
 runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
 checkpoint_config = dict(interval=10)
 log_config = dict(

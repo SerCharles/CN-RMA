@@ -1,8 +1,8 @@
 import torch
 import pytorch_lightning
 import json
-model_atlas = torch.load('/home/sgl/work_dirs_atlas/recon_3rscan/best_500.pth')['state_dict']
-model_mine = torch.load('/home/sgl/work_dirs_atlas/ray_marching_base_points.pth')['state_dict']
+model_atlas = torch.load('/home/sgl/work_dirs_atlas/3rscan_atlas_recon/best_200.pth')['state_dict']
+model_mine = torch.load('/home/sgl/work_dirs_atlas/ray_marching_neus_300_005.pth')['state_dict']
 
 atlas = {}
 mine = {}
@@ -22,6 +22,6 @@ new_state_dict = model_mine.copy()
 for key in model_atlas.keys():
     new_state_dict[key] = model_atlas[key]
 
-model_mine_full = torch.load('/home/sgl/work_dirs_atlas/ray_marching_base_points.pth')
+model_mine_full = torch.load('/home/sgl/work_dirs_atlas/ray_marching_neus_300_005.pth')
 model_mine_full['state_dict'] = new_state_dict
 torch.save(model_mine_full, '/home/sgl/work_dirs_atlas/3rscan_recon.pth')

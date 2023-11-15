@@ -11,14 +11,11 @@ VOXEL_SIZE_FCAF3D = 0.01
 N_SCALES = 3
 VOXEL_DIM_TRAIN = [192, 192, 80]
 VOXEL_DIM_TEST = [192, 192, 80]
-#VOXEL_DIM_TEST = [256, 256, 96]
 NUM_FRAMES_TRAIN = 40
-NUM_FRAMES_TEST = 40
 #NUM_FRAMES_TEST = 500
-#NUM_FRAMES_TEST = 50
+NUM_FRAMES_TEST = 40
 USE_BATCHNORM_TRAIN = True
 USE_BATCHNORM_TEST = True
-#USE_BATCHNORM_TEST = False
 USE_TSDF = True
 LOSS_WEIGHT_RECON = 0.5
 LOSS_WEIGHT_DETECTION = 1.0
@@ -31,11 +28,10 @@ lr_config = dict(policy='step', warmup=None, step=[240, 330])
 
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = '/home/sgl/work_dirs_atlas/3rscan_stage_3'
+work_dir = '/home/sgl/work_dirs_atlas/3rscan_stage_2'
 save_path = work_dir + '/results'
-load_from = '/home/sgl/work_dirs_atlas/3rscan_ray_trial.pth'
+load_from = '/home/sgl/work_dirs_atlas/3rscan_recon_old.pth'
 resume_from = None
-#resume_from = '/home/sgl/work_dirs_atlas/3rscan_stage_3/best_140.pth'
 
 
 workflow = [('train', 1)]
@@ -197,7 +193,6 @@ model = dict(
             nms_pre=1000,
             iou_thr=.5,
             score_thr=.01)),
-        use_feature_transform=True,
         feature_transform=dict(
             flip_ratio_horizontal=0.5,
             flip_ratio_vertical=0.5,

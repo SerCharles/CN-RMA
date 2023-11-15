@@ -78,9 +78,9 @@ def evaluate_bbox(dataset, data_path, result_path, postfix):
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", type=str, default='scannet')
-    parser.add_argument("--data_path", type=str, default='/data1/sgl/ScanNet')
-    parser.add_argument("--result_path", type=str, default='/home/sgl/work_dirs_atlas/atlas_baseline_scannet')
-    parser.add_argument("--postfix", type=str, default='_atlas_mine')
+    parser.add_argument("--dataset", type=str, default='3rscan')
+    parser.add_argument("--data_path", type=str, default='/data1/sgl/3RScan')
+    parser.add_argument("--result_path", type=str, default='/home/sgl/work_dirs_atlas/3rscan_stage_3/results')
+    parser.add_argument("--postfix", type=str, default='_atlas_bbox')
     args = parser.parse_args()
     evaluate_bbox(args.dataset, args.data_path, args.result_path, args.postfix)

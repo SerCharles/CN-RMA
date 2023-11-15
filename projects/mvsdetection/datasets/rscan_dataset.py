@@ -108,11 +108,16 @@ class AtlasRScanDataset(Custom3DDataset):
             'extrinsics': extrinsics, 
             'tsdf_dict': tsdf_dict,        
         }
-        items['ann_info'] = annos 
+        
+        if annos != None:
+            items['ann_info'] = annos 
         return items
             
     def get_ann_info(self, index):
         info = self.data_infos[index]
+        
+        if not 'annos' in info.keys():
+            return None
         
         if 'axis_align_matrix' in info['annos'].keys():
             axis_align_matrix = info['annos']['axis_align_matrix'].astype(np.float32)

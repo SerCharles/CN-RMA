@@ -189,7 +189,8 @@ class AtlasRayMarching(nn.Module):
         elif self.ray_marching_type == 'depth':
             assert self.depth_points in [1, 2, 3, 4]
 
-
+        self.total_loss = 0.0
+        self.total_num = 0.0
                 
 
     def initialize_volume(self):
@@ -535,64 +536,15 @@ class AtlasRayMarching(nn.Module):
         
         # run 3d cnn
         recon_result, recon_loss = self.atlas_reconstruction(inputs['tsdf_list'])
-        
-        #ray marching
-        
-
         self.aggregate_2d_features_ray_marching_points(projections, features, recon_result['scene_tsdf_004'])
-        
-        
-        '''  
-        #Ray marching test
-        i = 0
-        for projection, feature in zip(projections, features):
-            projection = projection.clone()
-            projection[:,:2,:] = projection[:,:2,:] / self.backbone2d_stride
-            #volume, weights = self.ray_projection(projection, feature, recon_result['scene_tsdf_004'])
-            #o, d, voxel_id, valid, tsdf_results, weights = self.ray_projection(projection, feature, recon_result['scene_tsdf_004'])            
-            o, d, voxel_id, weights = self.ray_projection_depth(projection, feature, recon_result['scene_tsdf_004'])
-            scene_id = inputs['scene'][0]
-            image_id = inputs['image_ids'][0][i]
-            result_tsdf = TSDF(self.voxel_size, self.origin, recon_result['scene_tsdf_004'][0].squeeze(0))
-            result_mesh = result_tsdf.get_mesh()
-            if not os.path.exists(os.path.join(self.save_path, scene_id + '_' + str(image_id))):
-                os.makedirs(os.path.join(self.save_path, scene_id + '_' + str(image_id)))
-            mesh_path = os.path.join(self.save_path, scene_id + '_' + str(image_id), scene_id + '_' + str(image_id) + '.ply')
-            result_mesh.export(mesh_path)
-            result_path = os.path.join(self.save_path, scene_id + '_' + str(image_id), scene_id + '_' + str(image_id) + '.npz')
-            #np.savez(result_path, o=o.detach().cpu().numpy(), d=d.detach().cpu().numpy(), voxel_id=voxel_id.detach().cpu().numpy(), valid=valid.detach().cpu().numpy(), tsdf_results=tsdf_results.detach().cpu().numpy(), origin=self.origin, weights=weights.detach().cpu().numpy())
-            np.savez(result_path, o=o.detach().cpu().numpy(), d=d.detach().cpu().numpy(), voxel_id=voxel_id.detach().cpu().numpy(), weights=weights.detach().cpu().numpy(), origin=self.origin)
-            
-            tsdf_path = os.path.join(self.save_path, scene_id + '_' + str(image_id), scene_id + '_' + str(image_id) + '_tsdf.npz')
-            result_tsdf.save(tsdf_path)
-            gt_tsdf = TSDF(self.voxel_size, self.origin, inputs['tsdf_list']['tsdf_gt_004'][0].squeeze(0))
-            gt_tsdf_path = os.path.join(self.save_path, scene_id + '_' + str(image_id), scene_id + '_' + str(image_id) + '_gt_tsdf.npz')
-            gt_tsdf.save(gt_tsdf_path)
-            gt_mesh_path = os.path.join(self.save_path, scene_id + '_' + str(image_id), scene_id + '_' + str(image_id) + '_gt.ply')
-            gt_mesh = gt_tsdf.get_mesh()
-            gt_mesh.export(gt_mesh_path)
-            i += 1
-            
-        
-            volume, weights = self.ray_projection(projection, feature, recon_result['scene_tsdf_004'])
-            scene_id = inputs['scene'][0]
-            image_id = inputs['image_ids'][0][i]
-            result_tsdf = TSDF(self.voxel_size, self.origin, recon_result['scene_tsdf_004'][0].squeeze(0))
-            result_mesh = result_tsdf.get_mesh()
-            if not os.path.exists(os.path.join(self.save_path, scene_id + '_' + str(image_id))):
-                os.makedirs(os.path.join(self.save_path, scene_id + '_' + str(image_id)))
-            mesh_path = os.path.join(self.save_path, scene_id + '_' + str(image_id), scene_id + '_' + str(image_id) + '.ply')
-            result_mesh.export(mesh_path)
-            result_path = os.path.join(self.save_path, scene_id + '_' + str(image_id), scene_id + '_' + str(image_id) + '_voxel.npz')
-            np.savez(result_path, weights=weights.detach().cpu().numpy(), origin=self.origin)
-            i += 1
-        '''
-
-        
-
         detection_loss = self.fcaf3d_detection_points(inputs, self.points_detection, test=False)
-        #detection_loss = self.fcaf3d_detection_voxels(inputs, recon_result['scene_tsdf_004'], self.volume, self.valid, test=False)  
-                
+        '''
+        detection_total_loss = 0.0
+        for key in detection_loss.keys():
+            detection_total_loss += float(detection_loss[key])
+        print(detection_total_loss)
+        '''
+        
         #get loss 
         losses = {}
         for key in recon_loss.keys():
@@ -638,7 +590,6 @@ class AtlasRayMarching(nn.Module):
         #ray marching
         self.aggregate_2d_features_ray_marching_points(projections, features, recon_result['scene_tsdf_004'])
         detection_loss = self.fcaf3d_detection_points(inputs, self.points_detection, test=True)        
-        #detection_loss = self.fcaf3d_detection_voxels(inputs, recon_result['scene_tsdf_004'], self.volume, self.valid, test=True)  
 
 
         #get loss 
@@ -663,6 +614,15 @@ class AtlasRayMarching(nn.Module):
         
         #self.save_middle_result_voxels(scene_id, self.volume[0], self.valid[0], result['scene_tsdf'].origin)
         #self.save_middle_result_points(scene_id, self.points_detection[0], result['scene_tsdf'].origin)
+        '''
+        ttloss = 0.0
+        for key in detection_loss.keys():
+            ttloss += float(detection_loss[key])
+        self.total_loss = self.total_loss + ttloss
+        self.total_num += 1
+        avgloss = self.total_loss / self.total_num 
+        print('current det loss:', ttloss, 'Avg det loss:', avgloss)
+        '''
         
         return [{}]
 
@@ -1156,8 +1116,8 @@ class AtlasRayMarching(nn.Module):
         Save TSDF with real coordinates
         '''
         import open3d as o3d
-        save_path = '/home/sgl/work_dirs_atlas/test/results'
-        visualize_path = '/home/sgl/work_dirs_atlas/test/results'
+        save_path = '/data1/sgl/3rscan_middle_trial'
+        visualize_path = '/home/sgl/work_dirs_atlas/3rscan_stage_2/results'
         if not os.path.exists(os.path.join(visualize_path, scene_id)):
             os.makedirs(os.path.join(visualize_path, scene_id))
             
@@ -1165,6 +1125,7 @@ class AtlasRayMarching(nn.Module):
         C = coords.shape[1] - 3        
         coords = coords.detach().cpu()
         coords[:, 0:3] = coords[:, 0:3] + offset.detach().cpu()
+        
         if N > self.max_points:
             choices = np.random.choice(N, self.max_points, replace=False)
             mask = np.zeros(N, dtype=np.bool)

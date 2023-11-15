@@ -369,10 +369,10 @@ class Atlas(nn.Module):
         data['projection'] = torch.stack(data['projection'], dim=0)
         if 'axis_align_matrix' in data.keys():
             data['axis_align_matrix'] = torch.stack(data['axis_align_matrix'], dim=0)
-
-        device = data['gt_labels_3d'][0].device 
-        for i in range(len(data['gt_bboxes_3d'])):
-            data['gt_bboxes_3d'][i] = data['gt_bboxes_3d'][i].to(device)
+        device = data['imgs'].device
+        if 'gt_bboxes_3d' in data.keys():
+            for i in range(len(data['gt_bboxes_3d'])):
+                data['gt_bboxes_3d'][i] = data['gt_bboxes_3d'][i].to(device)
 
         if 'offset' in data.keys():
             data['offset'] = torch.stack(data['offset'], dim=0)
