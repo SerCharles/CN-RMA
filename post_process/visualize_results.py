@@ -39,73 +39,91 @@ def load_scene_ids_3rscan(data_path, type):
     scene_ids.sort()
     return scene_ids
 
-def heading_to_rotation(heading_angle):
-    """Switch the heading angle to the rotation
 
+def rotate_points_along_z(points, angle):
+    """Rotation clockwise
     Args:
-        heading_angle [float]: [the heading angle of the bounding box]
+        points: np.array of np.array (B, N, 3 + C) or
+            (N, 3 + C) for single batch
+        angle: np.array of np.array (B, )
+            or (, ) for single batch
+            angle along z-axis, angle increases x ==> y
+    Returns:
+        points_rot:  (B, N, 3 + C) or (N, 3 + C)
+
+    """
+    single_batch = len(points.shape) == 2
+    if single_batch:
+        points = np.expand_dims(points, axis=0)
+        angle = np.expand_dims(angle, axis=0)
+    cosa = np.expand_dims(np.cos(angle), axis=1)
+    sina = np.expand_dims(np.sin(angle), axis=1)
+    zeros = np.zeros_like(cosa) # angle.new_zeros(points.shape[0])
+    ones = np.ones_like(sina) # angle.new_ones(points.shape[0])
+
+    rot_matrix = (
+        np.concatenate((cosa, -sina, zeros, sina, cosa, zeros, zeros, zeros, ones), axis=1)
+        .reshape(-1, 3, 3)
+    )
+
+    # print(rot_matrix.view(3, 3))
+    points_rot = np.matmul(points[:, :, :3], rot_matrix)
+    points_rot = np.concatenate((points_rot, points[:, :, 3:]), axis=-1)
+
+    if single_batch:
+        points_rot = points_rot.squeeze(0)
+
+    return points_rot
+
+def boxes_to_edges(boxes3d):
+    """
+        7 -------- 4
+       /|         /|
+      6 -------- 5 .
+      | |        | |
+      . 3 -------- 0
+      |/         |/
+      2 -------- 1
+    Args:
+        boxes3d:  (7) [x, y, z, dx, dy, dz, heading],
+            (x, y, z) is the box center
 
     Returns:
-        rotation [numpy float array], [3 * 3]: [the rotation matrix of the bounding box]
+        edges: (12, 2, 3)
     """
-    rotation = np.zeros((3,3))
-    rotation[2, 2] = 1
-    cosval = np.cos(heading_angle)
-    sinval = np.sin(heading_angle)
-    rotation[0:2, 0:2] = np.array([[cosval, -sinval], [sinval, cosval]])
-    return rotation
+    template = np.array([[1, 1, -1],
+        [1, -1, -1],
+        [-1, -1, -1],
+        [-1, 1, -1],
+        [1, 1, 1],
+        [1, -1, 1],
+        [-1, -1, 1],
+        [-1, 1, 1]]
+    ) / 2.
 
-def get_box_edges(center, lengths, heading_angle):
-    """
-    Get the edges of the bounding box
+    corners3d = np.tile(boxes3d[None, 3:6], (8, 1)) * template
+    corners3d = rotate_points_along_z(corners3d.reshape(8, 3), boxes3d[6]).reshape(
+        8, 3
+    )
+    corners3d += boxes3d[None, 0:3]
     
-    Args:
-        center [numpy float array], [3]: [the center of the bounding box]
-        lengths [numpy float array], [3]: [the lengths of the bounding box]
-        heading_angle [float]: [the heading angle of the bounding box]
-
-    Returns:
-        edges [numpy float array], [12 * 2 * 3]: [the edges of the bounding boxes]
-    """
-    
-    #init
-    corners = []
-    for i in range(2):
-        corners.append([])
-        for j in range(2):
-            corners[i].append([])
     edges = []
-    translation = center
-    rotation = heading_to_rotation(heading_angle)
-        
-    #get corners
-    for i in range(2):
-        for j in range(2):
-            for k in range(2):
-                dx = i - 0.5
-                dy = j - 0.5
-                dz = k - 0.5
-                d = np.array([dx, dy, dz])
-                point = d * lengths
-                point_global = np.dot(rotation, point) + translation 
-                corners[i][j].append(point_global)
-        
-    #get edges 
-    for k in range(2):
-        edge1 = np.stack([corners[0][0][k], corners[0][1][k]], axis=0) #2 * 3
-        edge2 = np.stack([corners[0][0][k], corners[1][0][k]], axis=0) #2 * 3
-        edge3 = np.stack([corners[0][1][k], corners[1][1][k]], axis=0) #2 * 3
-        edge4 = np.stack([corners[1][0][k], corners[1][1][k]], axis=0) #2 * 3
-        edges.append(edge1)
-        edges.append(edge2)
-        edges.append(edge3)
-        edges.append(edge4)
-    for i in range(2):
-        for j in range(2):
-            edge = np.stack([corners[i][j][0], corners[i][j][1]], axis=0) #2 * 3
-            edges.append(edge)
-    edges = np.stack(edges, axis = 0) #12 * 2 * 3
+    edges.append([corners3d[0], corners3d[1]])
+    edges.append([corners3d[1], corners3d[2]])
+    edges.append([corners3d[2], corners3d[3]])
+    edges.append([corners3d[3], corners3d[0]])
+    edges.append([corners3d[4], corners3d[5]])
+    edges.append([corners3d[5], corners3d[6]])
+    edges.append([corners3d[6], corners3d[7]])
+    edges.append([corners3d[7], corners3d[4]])
+    edges.append([corners3d[0], corners3d[4]])
+    edges.append([corners3d[1], corners3d[5]])
+    edges.append([corners3d[2], corners3d[6]])
+    edges.append([corners3d[3], corners3d[7]])
+    edges = np.array(edges)
     return edges
+
+
 
 def read_axis_align_matrix(data_path):
     axis_align_matrix = np.eye(4)
@@ -197,10 +215,7 @@ def visualize_boxs(mesh_path, meta_path, box_path, save_path, type='mesh'):
             continue 
         bbox = bboxes[i]
         label = labels[i]
-        center = bbox[0:3]
-        lengths = bbox[3:6]
-        heading_angle = bbox[6]
-        edges = get_box_edges(center, lengths, heading_angle)
+        edges = boxes_to_edges(bbox)
         all_edges.append(edges)
         all_colors.extend([colors[label]] * 12)
     if len(all_edges) > 0:
@@ -236,7 +251,7 @@ def visualize_boxs(mesh_path, meta_path, box_path, save_path, type='mesh'):
     scene = trimesh.util.concatenate(scene.dump())
     scene.export(save_path)
 
-def generate_gt(box_path, save_path):
+def generate_gt(box_path, save_path, dataset='scannet'):
     '''
     Generate gt results 
     
@@ -245,36 +260,41 @@ def generate_gt(box_path, save_path):
         save_path [str]: [the saving path]
     '''
     bboxes_data = np.load(box_path)
-    #if bboxes_data.shape[1] == 7:
-    if True:
+    if dataset == 'scannet' or dataset == '3rscan':
         bboxes = bboxes_data[:, 0:6]
         zeros = np.zeros((bboxes_data.shape[0], 1))
         bboxes = np.concatenate((bboxes, zeros), axis=1)
-    else:
+    elif dataset == 'arkit':
         bboxes = bboxes_data[:, 0:7]
     classes = bboxes_data[:, -1].astype(np.int32).tolist()
-    cat_ids = np.array([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 24, 28, 33, 34, 36, 39])
-    cat_ids2class = {
-        nyu40id: i
-        for i, nyu40id in enumerate(list(cat_ids))
-    }
-    labels = np.array([
-        cat_ids2class[classes[i]]
-        for i in range(len(classes))
-    ])
+    
+    if dataset == 'scannet' or dataset == '3rscan':
+        cat_ids = np.array([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 24, 28, 33, 34, 36, 39])
+        cat_ids2class = {
+            nyu40id: i
+            for i, nyu40id in enumerate(list(cat_ids))
+        }
+        labels = np.array([
+            cat_ids2class[classes[i]]
+            for i in range(len(classes))
+        ])
+    elif dataset == 'arkit':
+        labels = classes 
+    
     scores = np.ones((bboxes_data.shape[0]))
-
     np.savez(save_path, boxes=bboxes, scores=scores, labels=labels)
     
 
 def main():
     parser = argparse.ArgumentParser(description="NeuralRecon ScanNet Testing")
-    parser.add_argument("--dataset", type=str, default='3rscan')
+
+    parser.add_argument("--dataset", type=str, default='arkit')
     #parser.add_argument("--data_path", type=str, default='/data1/sgl/ScanNet')
-    parser.add_argument("--data_path", type=str, default='/data1/sgl/3RScan')
+    #parser.add_argument("--data_path", type=str, default='/data1/sgl/3RScan')
+    parser.add_argument("--data_path", type=str, default='/data1/sgl/ARKit')
 
     parser.add_argument("--post_fix", type=str, default='_gt')
-    parser.add_argument("--save_path", type=str, default='/home/sgl/ImVoxelNet/work_dirs/imvoxelnet_3rscan baseline/results')
+    parser.add_argument("--save_path", type=str, default='/data1/sgl/ARKit/bbox_gt')
 
     args = parser.parse_args()
     
@@ -282,13 +302,15 @@ def main():
         scene_ids = load_scene_ids_scannet(args.data_path, 'val')
     elif args.dataset == '3rscan':
         scene_ids = load_scene_ids_3rscan(args.data_path, 'val')
+    elif args.dataset == 'arkit':
+        scene_ids = os.listdir(os.path.join(args.data_path, '3dod', 'Validation'))
+    scene_ids.sort()
     
     #scene_ids=['scene0015_00', 'scene0019_00', 'scene0030_00', 'scene0050_00', 'scene0064_00', 'scene0084_00', 'scene0088_03', 'scene0100_01', 'scene0187_00', 'scene0217_00', 'scene0251_00', 'scene0389_00', 'scene0490_00', 'scene0559_01', 'scene0568_00', 'scene0598_00', 'scene0599_02', 'scene0609_01', 'scene0616_01', 'scene0651_00', 'scene0658_00', 'scene0664_00', 'scene0701_01']
-    #scene_ids = ['scene0609_01']
-
+    #scene_ids = ['scene0011_00', 'scene0304_00', 'scene0568_00']
+    #scene_ids = ['41069021']
+    scene_ids = ['40753679', '40777073', '40809741', '41048223']
     
-    #print(scene_ids)
-    scene_ids.sort()
     for scene_id in scene_ids:
         if args.dataset == 'scannet':
             meta_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '.txt')
@@ -296,11 +318,23 @@ def main():
         elif args.dataset == '3rscan':
             mesh_path = os.path.join(args.data_path, 'atlas_tsdf', scene_id, 'mesh_04.ply')
             meta_path = None
-                        
+        elif args.dataset == 'arkit':
+            #mesh_path = os.path.join(args.data_path, '3dod', 'Validation', scene_id, scene_id + '_3dod_mesh.ply')
+            mesh_path = os.path.join(args.data_path, '3dod', 'Training', scene_id, scene_id + '_3dod_mesh.ply')
+            meta_path = None
+        
+        
+        gt_path = os.path.join('/data1/sgl/ARKit/arkit_instance_data', scene_id + '_aligned_bbox.npy')
         bbox_path = os.path.join(args.save_path, scene_id, scene_id + args.post_fix + '.npz')
         save_path = os.path.join(args.save_path, scene_id, scene_id + args.post_fix + '.ply')
         if not os.path.exists(os.path.join(args.save_path, scene_id)):
+            os.makedirs(os.path.join(args.save_path, scene_id))
+        
+        '''if not os.path.exists(os.path.join(args.save_path, scene_id)):
             continue
+        '''
+        generate_gt(gt_path, bbox_path, dataset=args.dataset)
+        
         visualize_boxs(mesh_path, meta_path, bbox_path, save_path, type='mesh')
         print(scene_id, 'finished!')
 

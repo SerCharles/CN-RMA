@@ -52,7 +52,7 @@ class AtlasScanNetDataset(Custom3DDataset):
         if self.num_frames <= 0 or self.num_frames > len(total_image_ids):
             image_ids = total_image_ids
         elif self.select_type == 'random':
-                image_ids = random.sample(total_image_ids, self.num_frames)
+            image_ids = random.sample(total_image_ids, self.num_frames)
         elif self.select_type == 'unit':
             m = len(total_image_ids)
             n = self.num_frames
