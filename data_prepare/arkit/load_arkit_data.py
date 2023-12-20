@@ -92,7 +92,7 @@ def extract_bbox_infos(gt_fn):
     """
     gt = json.load(open(gt_fn, "r"))
     skipped = gt['skipped']
-    if len(gt) == 0:
+    if len(gt['data']) == 0:
         boxes_corners = np.zeros((0, 8, 3))
         centers = np.zeros((0, 3))
         sizes = np.zeros((0, 3))
@@ -180,29 +180,34 @@ def export_one_scan(scan_name,
         print('Error! No care instances found!')
         return False
     n_gt = boxes_corners.shape[0]
-    boxes = corners_to_boxes(boxes_corners)
-    label_ids = []
-    for l in labels:
-        label_ids.append(cls2label[l])
-    label_ids = np.array(label_ids).reshape(-1, 1)
-    unaligned_bboxes = np.concatenate([boxes, label_ids], axis=1) #N * 8  
-    aligned_bboxes = unaligned_bboxes.copy()
+    if n_gt == 0:
+        unaligned_bboxes = np.zeros(0, 8)
+        aligned_bboxes = unaligned_bboxes.copy()
+    
+    else:
+        boxes = corners_to_boxes(boxes_corners)
+        label_ids = []
+        for l in labels:
+            label_ids.append(cls2label[l])
+        label_ids = np.array(label_ids).reshape(-1, 1)
+        unaligned_bboxes = np.concatenate([boxes, label_ids], axis=1) #N * 8  
+        aligned_bboxes = unaligned_bboxes.copy()
     print(f'Num of care instances: {unaligned_bboxes.shape[0]}')
 
 
     np.save(f'{output_filename_prefix}_vert.npy', mesh_vertices)
     np.save(f'{output_filename_prefix}_sem_label.npy', semantic_labels)
     np.save(f'{output_filename_prefix}_ins_label.npy', instance_labels)
+    np.save(f'{output_filename_prefix}_axis_align_matrix.npy', axis_align_matrix)
+
     np.save(f'{output_filename_prefix}_unaligned_bbox.npy',unaligned_bboxes)
     np.save(f'{output_filename_prefix}_aligned_bbox.npy', aligned_bboxes)
-    np.save(f'{output_filename_prefix}_axis_align_matrix.npy', axis_align_matrix)
     return True
 
 
 def batch_export(max_num_point,
                  output_folder,
                  data_dir,
-                 save_names_file,
                  split='Training'):
     assert split in ['Training', 'Validation']
     
@@ -212,7 +217,6 @@ def batch_export(max_num_point,
 
     scan_names = os.listdir(os.path.join(data_dir, '3dod', split))
     scan_names.sort()
-    save_names = []
     for scan_name in scan_names:
         print('-' * 20 + 'begin')
         print(datetime.datetime.now())
@@ -222,49 +226,31 @@ def batch_export(max_num_point,
             print('File already exists. skipping.')
             print('-' * 20 + 'done')
             continue
-        if export_one_scan(scan_name, output_filename_prefix, max_num_point, data_dir, split):
-            save_names.append(scan_name)
+        export_one_scan(scan_name, output_filename_prefix, max_num_point, data_dir, split)
         print('-' * 20 + 'done')
 
-    with open(save_names_file, 'w') as f:
-        for i in range(len(save_names)):
-            item = save_names[i]
-            if i != len(save_names) - 1:
-                f.write("%s\n" % item)
-            else:
-                f.write("%s" % item)
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--max_num_point',
-        default=None,
+        default=200000,
         help='The maximum number of the points.')
     parser.add_argument(
         '--output_folder',
         default='/data1/sgl/ARKit/arkit_instance_data')
     parser.add_argument(
         '--data_path', default='/data1/sgl/ARKit')
-    parser.add_argument(
-        '--train_names_file',
-        default='/data1/sgl/ARKit/meta_data/arkit_train.txt',
-        help='The path of the file that stores the scan names.')
-    parser.add_argument(
-        '--val_names_file',
-        default='/data1/sgl/ARKit/meta_data/arkit_val.txt',
-        help='The path of the file that stores the scan names.')
     args = parser.parse_args()
     batch_export(
         args.max_num_point,
         args.output_folder,
         args.data_path,
-        args.train_names_file,
         'Training')
     batch_export(
         args.max_num_point,
         args.output_folder,
         args.data_path,
-        args.val_names_file,
         'Validation')
 
 

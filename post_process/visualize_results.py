@@ -308,8 +308,8 @@ def main():
     
     #scene_ids=['scene0015_00', 'scene0019_00', 'scene0030_00', 'scene0050_00', 'scene0064_00', 'scene0084_00', 'scene0088_03', 'scene0100_01', 'scene0187_00', 'scene0217_00', 'scene0251_00', 'scene0389_00', 'scene0490_00', 'scene0559_01', 'scene0568_00', 'scene0598_00', 'scene0599_02', 'scene0609_01', 'scene0616_01', 'scene0651_00', 'scene0658_00', 'scene0664_00', 'scene0701_01']
     #scene_ids = ['scene0011_00', 'scene0304_00', 'scene0568_00']
-    #scene_ids = ['41069021']
-    scene_ids = ['40753679', '40777073', '40809741', '41048223']
+    scene_ids = ['41069021']
+    #scene_ids = ['40753679', '40777073', '40809741']
     
     for scene_id in scene_ids:
         if args.dataset == 'scannet':
@@ -320,20 +320,24 @@ def main():
             meta_path = None
         elif args.dataset == 'arkit':
             #mesh_path = os.path.join(args.data_path, '3dod', 'Validation', scene_id, scene_id + '_3dod_mesh.ply')
-            mesh_path = os.path.join(args.data_path, '3dod', 'Training', scene_id, scene_id + '_3dod_mesh.ply')
+            #mesh_path = os.path.join(args.data_path, '3dod', 'Training', scene_id, scene_id + '_3dod_mesh.ply')
+            mesh_path = os.path.join(args.data_path, 'atlas_tsdf', scene_id, 'mesh_04.ply')
             meta_path = None
         
-        
-        gt_path = os.path.join('/data1/sgl/ARKit/arkit_instance_data', scene_id + '_aligned_bbox.npy')
         bbox_path = os.path.join(args.save_path, scene_id, scene_id + args.post_fix + '.npz')
         save_path = os.path.join(args.save_path, scene_id, scene_id + args.post_fix + '.ply')
+        
+        '''
+        gt_path = os.path.join('/data1/sgl/ARKit/arkit_instance_data', scene_id + '_aligned_bbox.npy')
+
         if not os.path.exists(os.path.join(args.save_path, scene_id)):
             os.makedirs(os.path.join(args.save_path, scene_id))
-        
+        generate_gt(gt_path, bbox_path, dataset=args.dataset)
+        '''
+
         '''if not os.path.exists(os.path.join(args.save_path, scene_id)):
             continue
         '''
-        generate_gt(gt_path, bbox_path, dataset=args.dataset)
         
         visualize_boxs(mesh_path, meta_path, bbox_path, save_path, type='mesh')
         print(scene_id, 'finished!')
