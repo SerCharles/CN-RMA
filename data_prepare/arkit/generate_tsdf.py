@@ -45,7 +45,7 @@ def parse_args():
     parser.add_argument('--loader_num_workers', default=4, type=int)
     parser.add_argument('--max_depth', default=3., type=float,
         help='mask out large depth values since they are noisy')
-    parser.add_argument('--save_mesh', default=0, type=int)
+    parser.add_argument('--save_mesh', default=1, type=int)
     args = parser.parse_args()
     return args 
 

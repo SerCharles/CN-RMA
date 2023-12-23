@@ -35,8 +35,8 @@ import projects.mvsdetection
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a detector')
-    parser.add_argument('--config', help='train config file path', type=str, default='projects/configs/atlas/atlas_ray_marching_3rscan.py')
-    parser.add_argument('--work-dir', help='the dir to save logs and models', type=str, default='/home/sgl/work_dirs_atlas/3rscan_stage_3')
+    parser.add_argument('--config', help='train config file path', type=str, default='projects/configs/atlas/atlas_recon_arkit.py')
+    parser.add_argument('--work-dir', help='the dir to save logs and models', type=str, default='/data1/sgl/work_dirs_atlas/test')
     parser.add_argument(
         '--resume-from', help='the checkpoint file to resume from')
     parser.add_argument(

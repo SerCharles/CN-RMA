@@ -178,10 +178,9 @@ def export_one_scan(scan_name,
     skipped, boxes_corners, centers, sizes, labels, uids = extract_bbox_infos(bbox_file)
     if skipped or boxes_corners.shape[0] == 0:
         print('Error! No care instances found!')
-        return False
     n_gt = boxes_corners.shape[0]
     if n_gt == 0:
-        unaligned_bboxes = np.zeros(0, 8)
+        unaligned_bboxes = np.zeros((0, 8))
         aligned_bboxes = unaligned_bboxes.copy()
     
     else:

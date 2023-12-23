@@ -32,7 +32,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="NeuralRecon ScanNet Testing")
     parser.add_argument('--dataset', type=str, default='3rscan')
     parser.add_argument("--data_path", type=str, default='/data1/sgl/3RScan')
-    parser.add_argument("--result_path", type=str, default='/home/sgl/work_dirs_atlas/3rscan_atlas_recon/results')
+    parser.add_argument("--result_path", type=str, default='/home/sgl/work_dirs_atlas/3rscan_atlas_recon_old/results')
     parser.add_argument("--axis_align", type=int, default=1)
 
     return parser.parse_args()
@@ -182,9 +182,9 @@ def split_list(_list, n):
 
 def main():
     if args.dataset == 'scannet':
-        scene_names_file = os.path.join(args.data_path, 'meta_data', 'scannetv2_train.txt')
+        scene_names_file = os.path.join(args.data_path, 'meta_data', 'scannetv2_val.txt')
     elif args.dataset == '3rscan':
-        scene_names_file = os.path.join(args.data_path, 'meta_data', '3rscan_train.txt')
+        scene_names_file = os.path.join(args.data_path, 'meta_data', '3rscan_val.txt')
     scene_names = [line.rstrip() for line in open(scene_names_file)]
     scene_names.sort()
 
