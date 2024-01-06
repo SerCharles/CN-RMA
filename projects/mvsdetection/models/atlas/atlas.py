@@ -226,19 +226,21 @@ class Atlas(nn.Module):
         # run 3d cnn
         outputs3d, losses3d = self.inference2(targets3d)
         print(losses3d)
+        try:
+            results = self.post_process(outputs3d, inputs)
         
-        results = self.post_process(outputs3d, inputs)
-        
-        for i in range(len(results)):
-            result = results[i]
-            scene_id = result['scene']
-            tsdf_pred = result['scene_tsdf']
-            mesh_pred = tsdf_pred.get_mesh()
-            if not os.path.exists(os.path.join(self.save_path, scene_id)):
-                os.makedirs(os.path.join(self.save_path, scene_id))
-            tsdf_pred.save(os.path.join(self.save_path, scene_id, scene_id + '.npz'))
-            mesh_pred.export(os.path.join(self.save_path, scene_id, scene_id + '.ply'), vertex_normal=True)
-            
+            for i in range(len(results)):
+                result = results[i]
+                scene_id = result['scene']
+                tsdf_pred = result['scene_tsdf']
+                mesh_pred = tsdf_pred.get_mesh()
+                if not os.path.exists(os.path.join(self.save_path, scene_id)):
+                    os.makedirs(os.path.join(self.save_path, scene_id))
+                tsdf_pred.save(os.path.join(self.save_path, scene_id, scene_id + '.npz'))
+                mesh_pred.export(os.path.join(self.save_path, scene_id, scene_id + '.ply'), vertex_normal=True)
+        except:
+            scene_id = inputs['scene'][0]
+            print(scene_id + 'is invalid!')
         return [{}]
 
     def post_process(self, outputs, inputs):

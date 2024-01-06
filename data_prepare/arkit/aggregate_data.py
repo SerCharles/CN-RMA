@@ -94,7 +94,7 @@ class ARKitData(object):
                 unaligned_box_label = self.get_unaligned_box_label(sample_idx)
                 annotations['gt_num'] = aligned_box_label.shape[0]
                 if annotations['gt_num'] != 0:
-                    aligned_box = aligned_box_label[:, :-1]  # k, 6
+                    aligned_box = aligned_box_label[:, :-1]  # k, 7
                     unaligned_box = unaligned_box_label[:, :-1]
                     classes = aligned_box_label[:, -1]  # k
                     annotations['name'] = np.array([

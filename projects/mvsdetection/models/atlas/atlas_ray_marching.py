@@ -1,6 +1,7 @@
 import numpy as np
 import os
 from math import *
+import open3d as o3d
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -139,7 +140,9 @@ class AtlasRayMarching(nn.Module):
                  use_feature_transform=True,
                  ray_marching_type='neus',
                  depth_points=None,
-                 neus_threshold=None):
+                 neus_threshold=None,
+                 middle_save_path=None,
+                 middle_visualize_path=None):
         super(AtlasRayMarching, self).__init__()
         # networks
         self.fp16_enabled = False
@@ -189,8 +192,8 @@ class AtlasRayMarching(nn.Module):
         elif self.ray_marching_type == 'depth':
             assert self.depth_points in [1, 2, 3, 4]
 
-        self.total_loss = 0.0
-        self.total_num = 0.0
+        self.middle_save_path = middle_save_path
+        self.middle_visualize_path = middle_visualize_path
                 
 
     def initialize_volume(self):
@@ -538,12 +541,7 @@ class AtlasRayMarching(nn.Module):
         recon_result, recon_loss = self.atlas_reconstruction(inputs['tsdf_list'])
         self.aggregate_2d_features_ray_marching_points(projections, features, recon_result['scene_tsdf_004'])
         detection_loss = self.fcaf3d_detection_points(inputs, self.points_detection, test=False)
-        '''
-        detection_total_loss = 0.0
-        for key in detection_loss.keys():
-            detection_total_loss += float(detection_loss[key])
-        print(detection_total_loss)
-        '''
+
         
         #get loss 
         losses = {}
@@ -600,29 +598,25 @@ class AtlasRayMarching(nn.Module):
             losses[key] = detection_loss[key] * self.loss_weight_detection
         
         print(losses)
-        recon_results = self.post_process(recon_result, inputs)
-        for result in recon_results:
-            scene_id = result['scene']
-            tsdf_pred = result['scene_tsdf']
-            mesh_pred = tsdf_pred.get_mesh()
-            if not os.path.exists(os.path.join(self.save_path, scene_id)):
-                os.makedirs(os.path.join(self.save_path, scene_id))
-            tsdf_pred.save(os.path.join(self.save_path, scene_id, scene_id + '.npz'))
-            mesh_pred.export(os.path.join(self.save_path, scene_id, scene_id + '.ply'))
-            #kebab = result['kebab'].get_mesh()
-            #kebab.export(os.path.join(self.save_path, scene_id, scene_id + '_gt.ply'))
+        try:
+            recon_results = self.post_process(recon_result, inputs)
+            for result in recon_results:
+                scene_id = result['scene']
+                tsdf_pred = result['scene_tsdf']
+                mesh_pred = tsdf_pred.get_mesh()
+                if not os.path.exists(os.path.join(self.save_path, scene_id)):
+                    os.makedirs(os.path.join(self.save_path, scene_id))
+                tsdf_pred.save(os.path.join(self.save_path, scene_id, scene_id + '.npz'))
+                mesh_pred.export(os.path.join(self.save_path, scene_id, scene_id + '.ply'))
+                #kebab = result['kebab'].get_mesh()
+                #kebab.export(os.path.join(self.save_path, scene_id, scene_id + '_gt.ply'))
         
-        #self.save_middle_result_voxels(scene_id, self.volume[0], self.valid[0], result['scene_tsdf'].origin)
-        #self.save_middle_result_points(scene_id, self.points_detection[0], result['scene_tsdf'].origin)
-        '''
-        ttloss = 0.0
-        for key in detection_loss.keys():
-            ttloss += float(detection_loss[key])
-        self.total_loss = self.total_loss + ttloss
-        self.total_num += 1
-        avgloss = self.total_loss / self.total_num 
-        print('current det loss:', ttloss, 'Avg det loss:', avgloss)
-        '''
+            if self.middle_save_path != None:
+                self.save_middle_result_points(scene_id, self.points_detection[0], result['scene_tsdf'].origin, self.middle_save_path, self.middle_visualize_path)
+        
+        except:
+            scene_id = inputs['scene'][0]
+            print(scene_id + 'is invalid!')
         
         return [{}]
 
@@ -1111,16 +1105,10 @@ class AtlasRayMarching(nn.Module):
         
         kebab=0
 
-    def save_middle_result_points(self, scene_id, coords, offset):
+    def save_middle_result_points(self, scene_id, coords, offset, save_path, visualize_path):
         '''
         Save TSDF with real coordinates
         '''
-        import open3d as o3d
-        save_path = '/data1/sgl/3rscan_middle_trial'
-        visualize_path = '/home/sgl/work_dirs_atlas/3rscan_stage_2/results'
-        if not os.path.exists(os.path.join(visualize_path, scene_id)):
-            os.makedirs(os.path.join(visualize_path, scene_id))
-            
         N = coords.shape[0]
         C = coords.shape[1] - 3        
         coords = coords.detach().cpu()
@@ -1140,15 +1128,16 @@ class AtlasRayMarching(nn.Module):
             coords = selected_coords
         
         save_place = os.path.join(save_path, scene_id + '_vert.npy')
-        visualize_place = os.path.join(visualize_path, scene_id, scene_id + '_points.ply')
-        
         np.save(save_place, coords)
         
-        pcd = o3d.geometry.PointCloud()
-        pcd.points = o3d.utility.Vector3dVector(coords[:, 0:3])
-        o3d.io.write_point_cloud(visualize_place, pcd)
-        
-        kebab=0
+        if visualize_path != None:
+            if not os.path.exists(os.path.join(visualize_path, scene_id)):
+                os.makedirs(os.path.join(visualize_path, scene_id))
+            visualize_place = os.path.join(visualize_path, scene_id, scene_id + '_points.ply')
+            pcd = o3d.geometry.PointCloud()
+            pcd.points = o3d.utility.Vector3dVector(coords[:, 0:3])
+            o3d.io.write_point_cloud(visualize_place, pcd)
+        print('Saved', scene_id)
 
     def visualize_points(self, scene_id, coords, bboxes, labels):
         '''

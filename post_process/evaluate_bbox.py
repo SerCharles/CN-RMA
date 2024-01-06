@@ -10,17 +10,34 @@ from glob import glob
 def evaluate_bbox(dataset, data_path, result_path, postfix):
     iou_thr=(0.25, 0.5)
     box_type_3d, box_mode_3d = get_box_type('Depth')
-    classes = ['cabinet', 'bed', 'chair', 'sofa', 'table', 'door', 'window',
-               'bookshelf', 'picture', 'counter', 'desk', 'curtain',
-               'refrigerator', 'showercurtrain', 'toilet', 'sink', 'bathtub',
-               'garbagebin']
-    cat2label = {cat: classes.index(cat) for cat in classes}
-    label2cat = {cat2label[t]: t for t in cat2label}
-    cat_ids = np.array([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 24, 28, 33, 34, 36, 39])
-    cat_ids2classes = {
-        nyu40id: i 
-        for i, nyu40id in enumerate(list(cat_ids))
-    }
+    
+    if dataset == 'scannet' or dataset == '3rscan':
+        classes = ['cabinet', 'bed', 'chair', 'sofa', 'table', 'door', 'window',
+                  'bookshelf', 'picture', 'counter', 'desk', 'curtain',
+                  'refrigerator', 'showercurtrain', 'toilet', 'sink', 'bathtub',
+                  'garbagebin']
+        cat2label = {cat: classes.index(cat) for cat in classes}
+        label2cat = {cat2label[t]: t for t in cat2label}
+        cat_ids = np.array([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 24, 28, 33, 34, 36, 39])
+        cat_ids2classes = {
+            nyu40id: i 
+            for i, nyu40id in enumerate(list(cat_ids))
+        }
+    else:
+        classes = [
+            "cabinet", "refrigerator", "shelf", "stove", "bed", # 0..5
+            "sink", "washer", "toilet", "bathtub", "oven", # 5..10
+            "dishwasher", "fireplace", "stool", "chair", "table", # 10..15
+            "tv_monitor", "sofa", # 15..17
+        ]
+        cat2label = {cat: classes.index(cat) for cat in classes}
+        label2cat = {cat2label[t]: t for t in cat2label}
+        cat_ids = np.array(
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16])
+        cat_ids2classes = {
+            nyu40id: i
+            for i, nyu40id in enumerate(list(cat_ids))
+        }
     
     scene_files = os.listdir(result_path)
     scene_ids = scene_files
@@ -49,10 +66,11 @@ def evaluate_bbox(dataset, data_path, result_path, postfix):
     for scene_id in scene_ids:
         gt_anno = {}
         if dataset == 'scannet':
-        
             box_file = os.path.join(data_path, 'scannet_instance_data', scene_id + '_aligned_bbox.npy')
         elif dataset == '3rscan':
             box_file = os.path.join(data_path, 'recon_instance_data_aabb', scene_id + '_aligned_bbox.npy')
+        elif dataset == 'arkit':
+            box_file = os.path.join(data_path, 'arkit_instance_data', scene_id + '_aligned_bbox.npy')
         aligned_box_label = np.load(box_file)
         gt_num = aligned_box_label.shape[0]
         gt_anno['gt_num'] = gt_num 
@@ -78,9 +96,9 @@ def evaluate_bbox(dataset, data_path, result_path, postfix):
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", type=str, default='scannet')
-    parser.add_argument("--data_path", type=str, default='/data1/sgl/ScanNet')
-    parser.add_argument("--result_path", type=str, default='/home/sgl/PETR/work_dirs/scannet_test/results')
-    parser.add_argument("--postfix", type=str, default='_petr')
+    parser.add_argument("--dataset", type=str, default='arkit')
+    parser.add_argument("--data_path", type=str, default='/data1/sgl/ARKit')
+    parser.add_argument("--result_path", type=str, default='/data1/sgl/work_dirs_atlas/arkit_fcaf3d_direct/results')
+    parser.add_argument("--postfix", type=str, default='_fcaf3d_retrain')
     args = parser.parse_args()
     evaluate_bbox(args.dataset, args.data_path, args.result_path, args.postfix)

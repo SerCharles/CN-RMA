@@ -381,19 +381,24 @@ class AtlasDetection(nn.Module):
             losses[key] = recon_loss[key] * self.loss_weight_recon
         for key in detection_loss.keys():
             losses[key] = detection_loss[key] * self.loss_weight_detection
-        
         print(losses)
-        recon_results = self.post_process(recon_result, inputs)
-        for result in recon_results:
-            scene_id = result['scene']
-            tsdf_pred = result['scene_tsdf']
-            mesh_pred = tsdf_pred.get_mesh()
-            if not os.path.exists(os.path.join(self.save_path, scene_id)):
-                os.makedirs(os.path.join(self.save_path, scene_id))
-            tsdf_pred.save(os.path.join(self.save_path, scene_id, scene_id + '.npz'))
-            mesh_pred.export(os.path.join(self.save_path, scene_id, scene_id + '.ply'))
-            #kebab = result['kebab'].get_mesh()
-            #kebab.export(os.path.join(self.save_path, scene_id, scene_id + '_gt.ply'))
+        
+        
+        try:
+            recon_results = self.post_process(recon_result, inputs)
+            for result in recon_results:
+                scene_id = result['scene']
+                tsdf_pred = result['scene_tsdf']
+                mesh_pred = tsdf_pred.get_mesh()
+                if not os.path.exists(os.path.join(self.save_path, scene_id)):
+                    os.makedirs(os.path.join(self.save_path, scene_id))
+                tsdf_pred.save(os.path.join(self.save_path, scene_id, scene_id + '.npz'))
+                mesh_pred.export(os.path.join(self.save_path, scene_id, scene_id + '.ply'))
+                #kebab = result['kebab'].get_mesh()
+                #kebab.export(os.path.join(self.save_path, scene_id, scene_id + '_gt.ply'))
+        except:
+            scene_id = inputs['scene'][0]
+            print(scene_id + 'is invalid!')
         
        # self.test_transform_valid(inputs)
         return [{}]

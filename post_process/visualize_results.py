@@ -294,7 +294,7 @@ def main():
     parser.add_argument("--data_path", type=str, default='/data1/sgl/ARKit')
 
     parser.add_argument("--post_fix", type=str, default='_gt')
-    parser.add_argument("--save_path", type=str, default='/data1/sgl/ARKit/bbox_gt')
+    parser.add_argument("--save_path", type=str, default='/data1/sgl/work_dirs_atlas/test/vis')
 
     args = parser.parse_args()
     
@@ -308,7 +308,8 @@ def main():
     
     #scene_ids=['scene0015_00', 'scene0019_00', 'scene0030_00', 'scene0050_00', 'scene0064_00', 'scene0084_00', 'scene0088_03', 'scene0100_01', 'scene0187_00', 'scene0217_00', 'scene0251_00', 'scene0389_00', 'scene0490_00', 'scene0559_01', 'scene0568_00', 'scene0598_00', 'scene0599_02', 'scene0609_01', 'scene0616_01', 'scene0651_00', 'scene0658_00', 'scene0664_00', 'scene0701_01']
     #scene_ids = ['scene0011_00', 'scene0304_00', 'scene0568_00']
-    scene_ids = ['40753679', '40777073', '40809741', '41069021']
+    #scene_ids = ['40753679', '40777073', '40809741', '41069021']
+    scene_ids = ['40753679', '40753686', '40776203']
     
     for scene_id in scene_ids:
         if args.dataset == 'scannet':
@@ -334,9 +335,12 @@ def main():
 
         '''if not os.path.exists(os.path.join(args.save_path, scene_id)):
             continue'''
+        #visualize_boxs(mesh_path, meta_path, bbox_path, save_path, type='mesh')
         
         
-        visualize_boxs(mesh_path, meta_path, bbox_path, save_path, type='mesh')
+        mesh_path = os.path.join(args.save_path, scene_id, scene_id + '_points.ply')
+        visualize_boxs(mesh_path, meta_path, bbox_path, save_path, type='points')
+        
         print(scene_id, 'finished!')
 
 if __name__ == "__main__":

@@ -7,42 +7,38 @@ classes = len(class_names)
 PIXEL_MEAN = [103.53, 116.28, 123.675]
 PIXEL_STD = [1.0, 1.0, 1.0]
 VOXEL_SIZE = 0.04
+VOXEL_SIZE_FCAF3D = 0.01
 N_SCALES = 3
-VOXEL_DIM_TRAIN = [160,160,64]
-VOXEL_DIM_TEST = [256,256,96]
-NUM_FRAMES_TRAIN = 50
-NUM_FRAMES_TEST = 500
-RANDOM_ROTATION_3D = True
-RANDOM_TRANSLATION_3D = True
-PAD_XY_3D = 1.0
-PAD_Z_3D = 0.25
+VOXEL_DIM_TRAIN = [192, 192, 80]
+VOXEL_DIM_TEST = [192, 192, 80]
+NUM_FRAMES_TRAIN = 40
+#NUM_FRAMES_TEST = 500
+NUM_FRAMES_TEST = 40
+USE_BATCHNORM_TRAIN = True
+USE_BATCHNORM_TEST = True
+USE_TSDF = True
+LOSS_WEIGHT_RECON = 0.5
+LOSS_WEIGHT_DETECTION = 1.0
 #fp16 = dict(loss_scale=512.)
 
-optimizer = dict(
-    type='Adam', 
-    lr=5e-4
-)
-optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
-lr_config = dict(policy='step', warmup=None, step=[300], gamma=0.1)
-'''lr_config = dict(policy='CosineAnnealing',
-                 warmup='linear',
-                 warmup_iters=500,
-                 warmup_ratio=1.0 / 3,
-                 min_lr_ratio=1e-3)'''
 
-#find_unused_parameters = True
+optimizer = dict(type='AdamW', lr=0.001, weight_decay=0.0001)
+optimizer_config = dict(grad_clip=dict(max_norm=10, norm_type=2))
+lr_config = dict(policy='step', warmup=None, step=[240, 330])
+
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = '/data1/sgl/work_dirs_atlas/arkit_recon'
+work_dir = '/data1/sgl/work_dirs_atlas/test'
 save_path = work_dir + '/results'
-#load_from = '/home/sgl/work_dirs_atlas/switch.pth'
-load_from = None
-resume_from = '/data1/sgl/work_dirs_atlas/arkit_recon/epoch_60.pth'
+load_from = '/home/sgl/work_dirs_atlas/3rscan_recon_old.pth'
+resume_from = None
+
+
 workflow = [('train', 1)]
-total_epochs = 100
+total_epochs = 360
 evaluation = dict(interval=3000, voxel_size=VOXEL_SIZE, save_path=work_dir+'/results')
 runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
-checkpoint_config = dict(interval=5)
+checkpoint_config = dict(interval=10)
 log_config = dict(
     interval=10,
     hooks=[
@@ -52,18 +48,19 @@ log_config = dict(
 
 
 train_pipeline = [
-    dict(type='AtlasResizeImage', size=((640, 480))),
+    dict(type='AtlasResizeImageRScan', size=((640, 480))),
     dict(type='AtlasToTensor'),
-    dict(type='AtlasRandomTransformSpaceRecon', voxel_dim=VOXEL_DIM_TRAIN, 
-        random_rotation=True, random_translation=True, paddingXY=PAD_XY_3D, paddingZ=PAD_Z_3D),
+    dict(type='AtlasTransformSpaceDetection', voxel_dim=VOXEL_DIM_TRAIN, 
+         origin=[0, 0, 0], test=False, mode='middle'),
     dict(type='AtlasIntrinsicsPoseToProjection'),
     dict(type='AtlasCollectData')
 ]
 
 test_pipeline = [
-    dict(type='AtlasResizeImage', size=((640, 480))),
+    dict(type='AtlasResizeImageRScan', size=((640, 480))),
     dict(type='AtlasToTensor'),
-    dict(type='AtlasTestTransformSpaceRecon', voxel_dim=VOXEL_DIM_TEST, origin=[0, 0, 0]),
+    dict(type='AtlasTransformSpaceDetection', voxel_dim=VOXEL_DIM_TEST, 
+         origin=[0, 0, 0], test=True, mode='middle'),    
     dict(type='AtlasIntrinsicsPoseToProjection'),
     dict(type='AtlasCollectData')
 ]
@@ -107,7 +104,7 @@ data = dict(
 
 
 model = dict(
-    type='Atlas',
+    type='AtlasRayMarching',
     pixel_mean=PIXEL_MEAN,
     pixel_std=PIXEL_STD,
     voxel_size=VOXEL_SIZE,
@@ -116,7 +113,20 @@ model = dict(
     voxel_dim_test=VOXEL_DIM_TEST,
     origin=[0,0,0],
     backbone2d_stride=4,
+    loss_weight_detection=LOSS_WEIGHT_DETECTION, 
+    loss_weight_recon=LOSS_WEIGHT_RECON,
+    voxel_size_fcaf3d=VOXEL_SIZE_FCAF3D,
+    use_batchnorm_train=USE_BATCHNORM_TRAIN,
+    use_batchnorm_test=USE_BATCHNORM_TEST,
+    use_tsdf=USE_TSDF,
     save_path=save_path,
+    ray_marching_type='neus',
+    neus_threshold=0.05,
+    depth_points=None, 
+    middle_save_path='/data1/sgl/ARKit/atlas_middle_data',
+    #middle_visualize_path='/data1/sgl/work_dirs_atlas/test/vis',
+    middle_visualize_path=None, 
+    
     backbone2d=dict(
         type='FPNDetectron',
         bottom_up_cfg=dict(
@@ -163,5 +173,34 @@ model = dict(
         voxel_size=VOXEL_SIZE,
         label_smoothing=1.05,
         sparse_threshold = [0.99, 0.99, 0.99]
-    )
-)
+    ),
+    detection_backbone=dict(
+        type='FCAF3DBackbone',
+        in_channels=32,
+        depth=34),
+    detection_head=dict(
+        type='FCAF3DHead',
+        in_channels=(64, 128, 256, 512),
+        out_channels=128,
+        pts_threshold=200000,
+        n_classes=18,
+        n_reg_outs=8,
+        voxel_size=VOXEL_SIZE_FCAF3D,
+        assigner=dict(
+            type='FCAF3DAssigner',
+            limit=27,
+            topk=18,
+            n_scales=4),
+        loss_bbox=dict(type='IoU3DLoss', loss_weight=1.0, with_yaw=False),
+        train_cfg=dict(),
+        test_cfg=dict(
+            nms_pre=1000,
+            iou_thr=.5,
+            score_thr=.01)),
+        feature_transform=dict(
+            flip_ratio_horizontal=0.5,
+            flip_ratio_vertical=0.5,
+            rot_range=[-0.087266, 0.087266],
+            scale_ratio_range=[.9, 1.1],
+            translation_std=[.1, .1, .1]),
+        max_points=500000)

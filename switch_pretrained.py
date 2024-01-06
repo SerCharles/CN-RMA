@@ -3,7 +3,7 @@ import pytorch_lightning
 import json
 model_atlas = torch.load('/home/sgl/work_dirs_atlas/final.ckpt')['state_dict']
 model_mine = torch.load('/home/sgl/work_dirs_atlas/ray_marching_base_points.pth')['state_dict']
-
+'''
 atlas = {}
 mine = {}
 resnet_mine = {}
@@ -42,7 +42,7 @@ for key in model_mine.keys():
         backbone3d_mine[key] = model_mine[key].shape
     elif 'tsdf_head' in key:
         head_mine[key] = model_mine[key].shape
-
+'''
 
 new_state_dict = model_mine.copy()
 for key in model_mine.keys():
