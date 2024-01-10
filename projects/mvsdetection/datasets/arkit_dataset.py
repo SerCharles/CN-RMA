@@ -117,61 +117,77 @@ class AtlasARKitDataset(Custom3DDataset):
                 image_ids.append(total_image_ids[i * k])
         image_ids.sort()
         
-        
-        data_path = os.path.join(self.data_root, split, scene, scene + '_frames')
-        #read extrinsics
-        traj_file = os.path.join(data_path, 'lowres_wide.traj')
-        with open(traj_file) as f:
-            self.traj = f.readlines()
-        # convert traj to json dict
-        poses_from_traj = {}
-        for line in self.traj:
-            traj_timestamp = line.split(" ")[0]
-            poses_from_traj[f"{round(float(traj_timestamp), 3):.3f}"] = TrajStringToMatrix(line)[1].tolist()
+        if not 'image_paths' in info.keys(): 
+            data_path = os.path.join(self.data_root, split, scene, scene + '_frames')
+            #read extrinsics
+            traj_file = os.path.join(data_path, 'lowres_wide.traj')
+            with open(traj_file) as f:
+                self.traj = f.readlines()
+            # convert traj to json dict
+            poses_from_traj = {}
+            for line in self.traj:
+                traj_timestamp = line.split(" ")[0]
+                poses_from_traj[f"{round(float(traj_timestamp), 3):.3f}"] = TrajStringToMatrix(line)[1].tolist()
 
-        # get intrinsics
-        intrinsics_from_traj = {}
-        for frame_id in image_ids:
-            intrinsic_fn = os.path.join(data_path, "lowres_wide_intrinsics", f"{scene}_{frame_id}.pincam")
-            if not os.path.exists(intrinsic_fn):
-                intrinsic_fn = os.path.join(data_path, "lowres_wide_intrinsics",
+            # get intrinsics
+            intrinsics_from_traj = {}
+            for frame_id in image_ids:
+                intrinsic_fn = os.path.join(data_path, "lowres_wide_intrinsics", f"{scene}_{frame_id}.pincam")
+                if not os.path.exists(intrinsic_fn):
+                    intrinsic_fn = os.path.join(data_path, "lowres_wide_intrinsics",
                                             f"{scene}_{float(frame_id) - 0.001:.3f}.pincam")
-            if not os.path.exists(intrinsic_fn):
-                intrinsic_fn = os.path.join(data_path, "lowres_wide_intrinsics",
+                if not os.path.exists(intrinsic_fn):
+                    intrinsic_fn = os.path.join(data_path, "lowres_wide_intrinsics",
                                             f"{scene}_{float(frame_id) + 0.001:.3f}.pincam")
-            if not os.path.exists(intrinsic_fn):
-                print("frame_id", frame_id)
-                print(intrinsic_fn)
-            intrinsics_from_traj[frame_id] = st2_camera_intrinsics(intrinsic_fn)
+                if not os.path.exists(intrinsic_fn):
+                    print("frame_id", frame_id)
+                    print(intrinsic_fn)
+                intrinsics_from_traj[frame_id] = st2_camera_intrinsics(intrinsic_fn)
         
         
-        for i, vid in enumerate(image_ids):            
-            img_path = os.path.join(data_path, 'lowres_wide', scene + '_' + vid + '.png')
-            img = Image.open(img_path)
-            '''
-            depth_path = os.path.join(data_path, 'lowres_depth', scene + '_' + vid + '.png')
-            depth = Image.open(depth_path)
-            depth = np.array(depth, dtype=np.float32) / 1000.0
-            '''
+            for i, vid in enumerate(image_ids):            
+                img_path = os.path.join(data_path, 'lowres_wide', scene + '_' + vid + '.png')
+                img = Image.open(img_path)
+                '''
+                depth_path = os.path.join(data_path, 'lowres_depth', scene + '_' + vid + '.png')
+                depth = Image.open(depth_path)
+                depth = np.array(depth, dtype=np.float32) / 1000.0
+                '''
 
-            intrinsic = copy.deepcopy(intrinsics_from_traj[str(vid)]).astype(np.float32)
-            if str(vid) in poses_from_traj.keys():
-                frame_pose = np.array(poses_from_traj[str(vid)])
-            else:
-                for my_key in list(poses_from_traj.keys()):
-                    if abs(float(vid) - float(my_key)) < 0.005:
-                        frame_pose = np.array(poses_from_traj[str(my_key)])
-            extrinsic = copy.deepcopy(frame_pose).astype(np.float32)
+                intrinsic = copy.deepcopy(intrinsics_from_traj[str(vid)]).astype(np.float32)
+                if str(vid) in poses_from_traj.keys():
+                    frame_pose = np.array(poses_from_traj[str(vid)])
+                else:
+                    for my_key in list(poses_from_traj.keys()):
+                        if abs(float(vid) - float(my_key)) < 0.005:
+                            frame_pose = np.array(poses_from_traj[str(my_key)])
+                extrinsic = copy.deepcopy(frame_pose).astype(np.float32)
             
-            if not np.isfinite(extrinsic).all():
-                print(scene, vid, 'is invalid!')
-                raise ValueError
+                if not np.isfinite(extrinsic).all():
+                    print(scene, vid, 'is invalid!')
+                    raise ValueError
             
-            imgs.append(img)
-            intrinsics.append(intrinsic)
-            extrinsics.append(extrinsic)
-        
-            
+                imgs.append(img)
+                intrinsics.append(intrinsic)
+                extrinsics.append(extrinsic)
+        else:
+            for i, vid in enumerate(image_ids):
+                img_path = info['image_paths'][vid]
+                img = Image.open(img_path)
+                
+                '''
+                depth_path = info['depth_paths'][vid]
+                depth = Image.open(depth_path)
+                depth = np.array(depth, dtype=np.float32) / 1000.0
+                '''
+                intrinsic = info['intrinsics'][vid].astype(np.float32)
+                extrinsic = info['extrinsics'][vid].astype(np.float32)
+                
+                imgs.append(img)
+                intrinsics.append(intrinsic)
+                extrinsics.append(extrinsic)
+
+                
         
         items = {
             'split': split,

@@ -37,7 +37,7 @@ work_dir = '/data1/sgl/work_dirs_atlas/arkit_recon'
 save_path = work_dir + '/results'
 #load_from = '/home/sgl/work_dirs_atlas/switch.pth'
 load_from = None
-resume_from = '/data1/sgl/work_dirs_atlas/arkit_recon/epoch_60.pth'
+resume_from = None
 workflow = [('train', 1)]
 total_epochs = 100
 evaluation = dict(interval=3000, voxel_size=VOXEL_SIZE, save_path=work_dir+'/results')

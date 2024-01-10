@@ -11,11 +11,14 @@ VOXEL_SIZE_FCAF3D = 0.01
 N_SCALES = 3
 VOXEL_DIM_TRAIN = [192, 192, 80]
 VOXEL_DIM_TEST = [192, 192, 80]
+#VOXEL_DIM_TEST = [256, 256, 96]
 NUM_FRAMES_TRAIN = 40
-#NUM_FRAMES_TEST = 500
 NUM_FRAMES_TEST = 40
+#NUM_FRAMES_TEST = 500
+#NUM_FRAMES_TEST = 50
 USE_BATCHNORM_TRAIN = True
 USE_BATCHNORM_TEST = True
+#USE_BATCHNORM_TEST = False
 USE_TSDF = True
 LOSS_WEIGHT_RECON = 0.5
 LOSS_WEIGHT_DETECTION = 1.0
@@ -24,21 +27,22 @@ LOSS_WEIGHT_DETECTION = 1.0
 
 optimizer = dict(type='AdamW', lr=0.001, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=dict(max_norm=10, norm_type=2))
-lr_config = dict(policy='step', warmup=None, step=[240, 330])
+lr_config = dict(policy='step', warmup=None, step=[27, 36])
 
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = '/data1/sgl/work_dirs_atlas/test'
+work_dir = '/data1/sgl/work_dirs_atlas/arkit_fcaf3d_stage3_trial1'
 save_path = work_dir + '/results'
-load_from = '/data1/sgl/work_dirs_atlas/arkit_only_atlas.pth'
+load_from = '/data1/sgl/work_dirs_atlas/arkit_atlas_fcaf3d_trial1.pth'
 resume_from = None
+#resume_from = '/home/sgl/work_dirs_atlas/3rscan_stage_3/best_140.pth'
 
 
 workflow = [('train', 1)]
-total_epochs = 360
+total_epochs = 40
 evaluation = dict(interval=3000, voxel_size=VOXEL_SIZE, save_path=work_dir+'/results')
 runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
-checkpoint_config = dict(interval=10)
+checkpoint_config = dict(interval=1)
 log_config = dict(
     interval=10,
     hooks=[
@@ -93,7 +97,7 @@ data = dict(
     test=dict(
         type='AtlasARKitDataset',
         data_root='./data/arkit',
-        ann_file='./data/arkit/arkit_infos_train.pkl',
+        ann_file='./data/arkit/arkit_infos_val.pkl',
         classes=class_names, 
         pipeline=test_pipeline, 
         test_mode=True,
@@ -123,10 +127,6 @@ model = dict(
     ray_marching_type='neus',
     neus_threshold=0.05,
     depth_points=None, 
-    middle_save_path='/data1/sgl/ARKit/atlas_middle_data',
-    #middle_visualize_path='/data1/sgl/work_dirs_atlas/test/vis',
-    middle_visualize_path=None, 
-    
     backbone2d=dict(
         type='FPNDetectron',
         bottom_up_cfg=dict(
@@ -197,6 +197,7 @@ model = dict(
             nms_pre=1000,
             iou_thr=.5,
             score_thr=.01)),
+        use_feature_transform=True,
         feature_transform=dict(
             flip_ratio_horizontal=0.5,
             flip_ratio_vertical=0.5,

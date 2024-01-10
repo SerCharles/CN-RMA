@@ -98,7 +98,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, default='arkit')
     parser.add_argument("--data_path", type=str, default='/data1/sgl/ARKit')
-    parser.add_argument("--result_path", type=str, default='/data1/sgl/work_dirs_atlas/arkit_fcaf3d_direct/results')
+    parser.add_argument("--result_path", type=str, default='/data1/sgl/work_dirs_atlas/arkit_fcaf3d_two_stage/results')
     parser.add_argument("--postfix", type=str, default='_fcaf3d_retrain')
     args = parser.parse_args()
     evaluate_bbox(args.dataset, args.data_path, args.result_path, args.postfix)

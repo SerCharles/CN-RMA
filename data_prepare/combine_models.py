@@ -108,6 +108,8 @@ def combine_atlas_fcaf3d(atlas_path, fcaf3d_path, full_model_path, result_path):
             if fcaf3d_mode == 'none':
                 fcaf3d_key = None
             else:
+                if key == 'detection_head.cls_conv.kernel' or key == 'detection_head.cls_conv.bias':
+                    kebab=0
                 back_key = key[15:]
                 front_key = 'neck_with_head.'
                 fcaf3d_key = front_key + back_key
@@ -131,15 +133,15 @@ def main():
     parser.add_argument(
         '--fcaf3d_model_path',
         type=str,
-        default=None)
+        default='/data1/sgl/work_dirs_atlas/arkit_fcaf3d_two_stage/epoch_12.pth')
     parser.add_argument(
         '--full_model_path',
         type=str,
-        default='/home/sgl/work_dirs_atlas/ray_marching_neus_300_005.pth')
+        default='/data1/sgl/work_dirs_atlas/arkit_atlas_fcaf3d_trial1.pth')
     parser.add_argument(
         '--result_path',
         type=str,
-        default='/data1/sgl/work_dirs_atlas/arkit_only_atlas.pth')
+        default='/data1/sgl/work_dirs_atlas/arkit_atlas_fcaf3d_trial1.pth')
     parser.add_argument(
         '--result_type',
         type=str,

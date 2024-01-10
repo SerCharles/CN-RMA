@@ -2,9 +2,57 @@ import json
 import mmcv
 import numpy as np
 import os
+import cv2
+import copy
+import glob
 import argparse
 from concurrent import futures as futures
 
+
+def convert_angle_axis_to_matrix3(angle_axis):
+    """Return a Matrix3 for the angle axis.
+    Arguments:
+        angle_axis {Point3} -- a rotation in angle axis form.
+    """
+    matrix, jacobian = cv2.Rodrigues(angle_axis)
+    return matrix
+
+def TrajStringToMatrix(traj_str):
+    """ convert traj_str into translation and rotation matrices
+    Args:
+        traj_str: A space-delimited file where each line represents a camera position at a particular timestamp.
+        The file has seven columns:
+        * Column 1: timestamp
+        * Columns 2-4: rotation (axis-angle representation in radians)
+        * Columns 5-7: translation (usually in meters)
+
+    Returns:
+        ts: translation matrix
+        Rt: rotation matrix
+    """
+    # line=[float(x) for x in traj_str.split()]
+    # ts = line[0];
+    # R = cv2.Rodrigues(np.array(line[1:4]))[0];
+    # t = np.array(line[4:7]);
+    # Rt = np.concatenate((np.concatenate((R, t[:,np.newaxis]), axis=1), [[0.0,0.0,0.0,1.0]]), axis=0)
+    tokens = traj_str.split()
+    assert len(tokens) == 7
+    ts = tokens[0]
+    # Rotation in angle axis
+    angle_axis = [float(tokens[1]), float(tokens[2]), float(tokens[3])]
+    r_w_to_p = convert_angle_axis_to_matrix3(np.asarray(angle_axis))
+    # Translation
+    t_w_to_p = np.asarray([float(tokens[4]), float(tokens[5]), float(tokens[6])])
+    extrinsics = np.eye(4, 4)
+    extrinsics[:3, :3] = r_w_to_p
+    extrinsics[:3, -1] = t_w_to_p
+    Rt = np.linalg.inv(extrinsics)
+    return (ts, Rt)
+
+
+def st2_camera_intrinsics(filename):
+    w, h, fx, fy, hw, hh = np.loadtxt(filename)
+    return np.asarray([[fx, 0, hw], [0, fy, hh], [0, 0, 1]])
 
 class ARKitData(object):
     """ScanNet data.
@@ -37,9 +85,10 @@ class ARKitData(object):
         assert split in ['train', 'val']
         if split == 'train':
             self.sample_id_list = [scene for scene in os.listdir(os.path.join(root_path, 'Training'))]
+            self.split = 'Training'
         else:
             self.sample_id_list = [scene for scene in os.listdir(os.path.join(root_path, 'Validation'))]
-
+            self.split = 'Validation'
     def __len__(self):
         return len(self.sample_id_list)
 
@@ -60,6 +109,71 @@ class ARKitData(object):
                                f'{idx}_axis_align_matrix.npy')
         mmcv.check_file_exist(matrix_file)
         return np.load(matrix_file)
+
+
+    def read_2d_info(self, scene):
+        data_path = os.path.join(self.root_dir, self.split, scene, scene + '_frames')
+        
+        #get image ids
+        depth_folder = os.path.join(data_path, "lowres_depth")
+        depth_images = sorted(glob.glob(os.path.join(depth_folder, "*.png")))
+        frame_ids = [os.path.basename(x) for x in depth_images]
+        frame_ids = [x.split(".png")[0].split("_")[1] for x in frame_ids]
+        frame_ids = [x for x in frame_ids]
+        frame_ids.sort()
+        
+        #read extrinsics
+        traj_file = os.path.join(data_path, 'lowres_wide.traj')
+        with open(traj_file) as f:
+            self.traj = f.readlines()
+        # convert traj to json dict
+        poses_from_traj = {}
+        for line in self.traj:
+            traj_timestamp = line.split(" ")[0]
+            poses_from_traj[f"{round(float(traj_timestamp), 3):.3f}"] = TrajStringToMatrix(line)[1].tolist()
+
+        # get intrinsics
+        intrinsics_from_traj = {}
+        for frame_id in frame_ids:
+            intrinsic_fn = os.path.join(data_path, "lowres_wide_intrinsics", f"{scene}_{frame_id}.pincam")
+            if not os.path.exists(intrinsic_fn):
+                intrinsic_fn = os.path.join(data_path, "lowres_wide_intrinsics",
+                                            f"{scene}_{float(frame_id) - 0.001:.3f}.pincam")
+            if not os.path.exists(intrinsic_fn):
+                intrinsic_fn = os.path.join(data_path, "lowres_wide_intrinsics",
+                                            f"{scene}_{float(frame_id) + 0.001:.3f}.pincam")
+            if not os.path.exists(intrinsic_fn):
+                print("frame_id", frame_id)
+                print(intrinsic_fn)
+            intrinsics_from_traj[frame_id] = st2_camera_intrinsics(intrinsic_fn)
+        
+        image_paths = {}
+        depth_paths = {}
+        extrinsics = {}
+        intrinsics = {}
+        total_image_ids = []
+
+        for i, vid in enumerate(frame_ids):            
+            intrinsic = copy.deepcopy(intrinsics_from_traj[str(vid)]).astype(np.float32)
+            if str(vid) in poses_from_traj.keys():
+                frame_pose = np.array(poses_from_traj[str(vid)])
+            else:
+                for my_key in list(poses_from_traj.keys()):
+                    if abs(float(vid) - float(my_key)) < 0.005:
+                        frame_pose = np.array(poses_from_traj[str(my_key)])
+            extrinsic = copy.deepcopy(frame_pose).astype(np.float32)
+            img_path = os.path.join(self.split, scene, scene + '_frames', 'lowres_wide', scene + '_' + vid + '.png')
+            depth_path = os.path.join(self.split, scene, scene + '_frames', 'lowres_depth', scene + '_' + vid + '.png')
+            if np.all(np.isfinite(extrinsic)):
+                total_image_ids.append(vid)
+                image_paths[vid] = img_path
+                intrinsics[vid] = intrinsic
+                extrinsics[vid] = extrinsic
+                depth_paths[vid] = depth_path
+            else:
+                print(f'invalid extrinsic for {scene}_{vid}')
+        
+        return total_image_ids, image_paths, depth_paths, intrinsics, extrinsics
 
     def get_infos(self, num_workers=4, has_label=True, sample_id_list=None):
         """Get data infos.
@@ -83,10 +197,14 @@ class ARKitData(object):
             with open(info_path) as f:
                 info = json.load(f)
 
-            if self.split == 'train':
-                info['split'] = 'Training'
-            else:
-                info['split'] = 'Validation'
+            info['split'] = self.split
+            total_image_ids, image_paths, depth_paths, intrinsics, extrinsics = self.read_2d_info(sample_idx)
+            info['total_image_ids'] = total_image_ids
+            info['image_paths'] = image_paths
+            info['depth_paths'] = depth_paths
+            info['intrinsics'] = intrinsics 
+            info['extrinsics'] = extrinsics
+                
             if has_label:
                 annotations = {}
                 # box is of shape [k, 6 + class]
