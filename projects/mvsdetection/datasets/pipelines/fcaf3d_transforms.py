@@ -141,6 +141,7 @@ class TransformFeaturesBBoxes(object):
 
 
 
+
 def rotate_points(points, rotation):
     """Rotate points with the given rotation matrix or angle.
 

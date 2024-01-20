@@ -9,11 +9,19 @@ PIXEL_STD = [1.0, 1.0, 1.0]
 VOXEL_SIZE = 0.04
 VOXEL_SIZE_FCAF3D = 0.01
 N_SCALES = 3
+'''
 VOXEL_DIM_TRAIN = [192, 192, 80]
 VOXEL_DIM_TEST = [192, 192, 80]
 NUM_FRAMES_TRAIN = 40
 #NUM_FRAMES_TEST = 500
 NUM_FRAMES_TEST = 40
+'''
+VOXEL_DIM_TRAIN = [160,160,64]
+VOXEL_DIM_TEST = [160,160,64]
+NUM_FRAMES_TRAIN = 50
+#NUM_FRAMES_TEST = 500
+NUM_FRAMES_TEST = 50
+
 USE_BATCHNORM_TRAIN = True
 USE_BATCHNORM_TEST = True
 USE_TSDF = True
@@ -28,7 +36,7 @@ lr_config = dict(policy='step', warmup=None, step=[240, 330])
 
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = '/data1/sgl/work_dirs_atlas/test'
+work_dir = '/data1/sgl/work_dirs_atlas/test_2'
 save_path = work_dir + '/results'
 load_from = '/data1/sgl/work_dirs_atlas/arkit_only_atlas.pth'
 resume_from = None
@@ -93,7 +101,7 @@ data = dict(
     test=dict(
         type='AtlasARKitDataset',
         data_root='./data/arkit',
-        ann_file='./data/arkit/arkit_infos_train.pkl',
+        ann_file='./data/arkit/arkit_infos_val.pkl',
         classes=class_names, 
         pipeline=test_pipeline, 
         test_mode=True,
@@ -123,10 +131,9 @@ model = dict(
     ray_marching_type='neus',
     neus_threshold=0.05,
     depth_points=None, 
-    middle_save_path='/data1/sgl/ARKit/atlas_middle_data',
-    #middle_visualize_path='/data1/sgl/work_dirs_atlas/test/vis',
+    middle_save_path='/data1/sgl/ARKit/atlas_middle_data_16016064',
+    #middle_visualize_path='/data1/sgl/work_dirs_atlas/test_2/vis',
     middle_visualize_path=None, 
-    
     backbone2d=dict(
         type='FPNDetectron',
         bottom_up_cfg=dict(

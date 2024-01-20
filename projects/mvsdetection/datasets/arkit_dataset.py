@@ -172,11 +172,11 @@ class AtlasARKitDataset(Custom3DDataset):
                 extrinsics.append(extrinsic)
         else:
             for i, vid in enumerate(image_ids):
-                img_path = info['image_paths'][vid]
+                img_path = os.path.join(self.data_root, info['image_paths'][vid])
                 img = Image.open(img_path)
                 
                 '''
-                depth_path = info['depth_paths'][vid]
+                depth_path = os.path.join(self.data_root, info['depth_paths'][vid])
                 depth = Image.open(depth_path)
                 depth = np.array(depth, dtype=np.float32) / 1000.0
                 '''
@@ -214,12 +214,12 @@ class AtlasARKitDataset(Custom3DDataset):
             warnings.warn('Axis align matrix is invalid, set to I')
         
         if info['annos']['gt_num'] != 0:
-            gt_bboxes_3d = info['annos']['gt_boxes_upright_depth'].astype(np.float32) #K * 6
+            gt_bboxes_3d = info['annos']['gt_boxes_upright_depth'].astype(np.float32) #K * 7
             gt_labels_3d = info['annos']['class'].astype(np.long)
         else:
-            gt_bboxes_3d = np.zeros((0, 6), dtype=np.float32)
+            gt_bboxes_3d = np.zeros((0, 7), dtype=np.float32)
             gt_labels_3d = np.zeros((0, ), dtype=np.long)
-        gt_bboxes_3d = DepthInstance3DBoxes(gt_bboxes_3d, box_dim=gt_bboxes_3d.shape[-1], with_yaw=False, 
+        gt_bboxes_3d = DepthInstance3DBoxes(gt_bboxes_3d, box_dim=gt_bboxes_3d.shape[-1], with_yaw=True, 
                                             origin=(0.5, 0.5, 0.5)).convert_to(self.box_mode_3d)
         
         ann_results = dict(gt_bboxes_3d=gt_bboxes_3d, gt_labels_3d=gt_labels_3d, axis_align_matrix=axis_align_matrix)

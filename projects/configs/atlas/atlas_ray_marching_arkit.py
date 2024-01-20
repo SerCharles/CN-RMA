@@ -31,11 +31,10 @@ lr_config = dict(policy='step', warmup=None, step=[27, 36])
 
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = '/data1/sgl/work_dirs_atlas/arkit_fcaf3d_stage3_trial1'
+work_dir = '/data1/sgl/work_dirs_atlas/arkit_fcaf3d_stage3_trial_2'
 save_path = work_dir + '/results'
 load_from = '/data1/sgl/work_dirs_atlas/arkit_atlas_fcaf3d_trial1.pth'
-resume_from = None
-#resume_from = '/home/sgl/work_dirs_atlas/3rscan_stage_3/best_140.pth'
+resume_from = '/data1/sgl/work_dirs_atlas/arkit_fcaf3d_stage3_trial_2/epoch_21.pth'
 
 
 workflow = [('train', 1)]
@@ -146,7 +145,7 @@ model = dict(
         out_channels=256,
         norm='BN',
         fuse_type='sum',
-        pretrained='/home/sgl/work_dirs_atlas/R-50.pth'
+        pretrained='/data1/sgl/work_dirs_atlas/R-50.pth'
     ),
     feature_2d=dict(
         type='AtlasFPNFeature',
