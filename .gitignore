@@ -3,7 +3,6 @@
 outputs
 *.bin
 checkpoints
-data/
 results/
 *.pyc
 # Byte-compiled / optimized / DLL files
