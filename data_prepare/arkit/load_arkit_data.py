@@ -1,12 +1,9 @@
 # Modified from
-# https://github.com/facebookresearch/votenet/blob/master/scannet/load_scannet_data.py
+# https://github.com/facebookresearch/votenet/blob/master/scannet/batch_load_scannet_data.py
 # Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
-# LICENSE file in the root directory of this source tree.
-"""Load Scannet scenes with vertices and ground truth labels for semantic and
-instance segmentations."""
-
+"""Loading ARKitScenes data with vertices and ground truth labels for object detection
+Usage example: python ./load_arkit_data.py
+"""
 
 import argparse
 from math import *

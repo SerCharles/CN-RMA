@@ -1,3 +1,10 @@
+# Modified from
+# https://github.com/open-mmlab/mmdetection3d/blob/main/mmdet3d/datasets/transforms/transforms_3d.py
+# Copyright (c) OpenMMLab, Inc. and its affiliates.
+"""Transforms for FCAF3D Detection
+"""
+
+
 import numpy as np 
 import torch
 from mmdet.datasets.builder import PIPELINES

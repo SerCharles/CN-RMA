@@ -1,3 +1,12 @@
+# Modified from
+# https://github.com/SamsungLabs/fcaf3d/blob/master/mmdet3d/datasets/custom_3d.py
+# Copyright (c) Samsung, Inc. and its affiliates.
+"""Evaluation functions for indoors 3D object detection
+Usage example: python ./evaluate_bbox.py
+"""
+
+
+
 import os 
 import argparse 
 import numpy as np 
@@ -11,7 +20,7 @@ def evaluate_bbox(dataset, data_path, result_path, postfix):
     iou_thr=(0.25, 0.5)
     box_type_3d, box_mode_3d = get_box_type('Depth')
     
-    if dataset == 'scannet' or dataset == '3rscan':
+    if dataset == 'scannet':
         classes = ['cabinet', 'bed', 'chair', 'sofa', 'table', 'door', 'window',
                   'bookshelf', 'picture', 'counter', 'desk', 'curtain',
                   'refrigerator', 'showercurtrain', 'toilet', 'sink', 'bathtub',
@@ -55,7 +64,6 @@ def evaluate_bbox(dataset, data_path, result_path, postfix):
         bboxes = DepthInstance3DBoxes(
             bboxes,
             box_dim=bboxes.shape[-1],
-            with_yaw=False, 
             origin=(0.5, 0.5, 0.5)).convert_to(box_mode_3d)
         result['boxes_3d'] = bboxes
         result['labels_3d'] = torch.Tensor(labels).long()
@@ -67,8 +75,6 @@ def evaluate_bbox(dataset, data_path, result_path, postfix):
         gt_anno = {}
         if dataset == 'scannet':
             box_file = os.path.join(data_path, 'scannet_instance_data', scene_id + '_aligned_bbox.npy')
-        elif dataset == '3rscan':
-            box_file = os.path.join(data_path, 'recon_instance_data_aabb', scene_id + '_aligned_bbox.npy')
         elif dataset == 'arkit':
             box_file = os.path.join(data_path, 'arkit_instance_data', scene_id + '_aligned_bbox.npy')
         aligned_box_label = np.load(box_file)

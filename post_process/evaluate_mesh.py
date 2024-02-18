@@ -1,21 +1,10 @@
-# This file is derived from [Atlas](https://github.com/magicleap/Atlas).
-# Originating Author: Zak Murez (zak.murez.com)
-# Modified for [NeuralRecon](https://github.com/zju3dv/NeuralRecon) by Yiming Xie.
+# Modified from
+# https://github.com/zju3dv/NeuralRecon/blob/master/tools/evaluation.py
+# Copyright (c) Zhejiang University, Inc. and its affiliates.
+"""Evaluation functions for 3D reconstruction
+Usage example: python ./evaluate_mesh.py
+"""
 
-# Original header:
-# Copyright 2020 Magic Leap, Inc.
-
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-
-#     http://www.apache.org/licenses/LICENSE-2.0
-
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 
 import sys
 import argparse
@@ -150,10 +139,6 @@ def process(scene_id):
             axis_align_matrix = None
         pred_mesh_path = os.path.join(args.result_path, scene_id, scene_id + '.ply')
         gt_mesh_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '_vh_clean_2.ply')
-    elif args.dataset == '3rscan':
-        pred_mesh_path = os.path.join(args.result_path, scene_id, scene_id + '.ply')
-        gt_mesh_path = os.path.join(args.data_path, 'scans', scene_id, 'labels.instances.annotated.v2.ply')
-        axis_align_matrix = None
     elif args.dataset == 'arkit':
         pred_mesh_path = os.path.join(args.result_path, scene_id, scene_id + '.ply')
         gt_mesh_path = os.path.join(args.data_path, '3dod', 'Validation', scene_id, scene_id + '_3dod_mesh.ply')
@@ -187,9 +172,6 @@ def split_list(_list, n):
 def main():
     if args.dataset == 'scannet':
         scene_names_file = os.path.join(args.data_path, 'meta_data', 'scannetv2_val.txt')
-        scene_names = [line.rstrip() for line in open(scene_names_file)]
-    elif args.dataset == '3rscan':
-        scene_names_file = os.path.join(args.data_path, 'meta_data', '3rscan_val.txt')
         scene_names = [line.rstrip() for line in open(scene_names_file)]
     elif args.dataset == 'arkit':
         scene_names = os.listdir(os.path.join(args.data_path, '3dod', 'Validation'))

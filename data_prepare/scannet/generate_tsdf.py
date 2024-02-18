@@ -1,9 +1,11 @@
 # Modified from
 # https://github.com/magicleap/Atlas/blob/master/prepare_data.py
 # Copyright (c) MagicLeap, Inc. and its affiliates.
-"""Generate TSDF data for ARKitScenes.
+"""Generate TSDF data for ScanNet.
 Usage example: python ./generate_tsdf.py
 """
+
+#  Originating Author: Zak Murez (zak.murez.com)
 
 import argparse
 import json
@@ -14,7 +16,7 @@ import numpy as np
 import torch
 import trimesh
 
-from arkit_simple_loader import ARKitSimpleLoader
+from scannet_simple_loader import ScanNetSimpleDataset
 from transforms import *
 from tsdf import TSDFFusion, TSDF, coordinates, depth_to_world
 from tqdm import tqdm
@@ -25,11 +27,11 @@ torch.multiprocessing.set_sharing_strategy('file_system')
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Fuse ground truth tsdf')
-
-    parser.add_argument("--dataset", type=str, default='arkit')    
-    parser.add_argument("--data_path", type=str, default='/data1/sgl/ARKit')    
-    parser.add_argument("--save_path", type=str, default='/data1/sgl/ARKit/atlas_tsdf')
     
+    parser.add_argument("--dataset", type=str, default='scannet')    
+    parser.add_argument("--data_path", type=str, default='/data1/sgl/ScanNet')    
+    parser.add_argument("--save_path", type=str, default='/data1/sgl/ScanNet/atlas_tsdf')
+
     parser.add_argument('--n_proc', default=2, type=int)
     parser.add_argument('--n_gpu', default=2, type=int)
     parser.add_argument('--num_workers', default=4, type=int)
@@ -131,20 +133,20 @@ def fuse_scene(args, scene, frame_list, voxel_size, trunc_ratio=3,
 
 
 @ray.remote(num_cpus=args.num_workers + 1, num_gpus=(1 / args.n_proc))
-def prepare_single(args, scenes, split='Training'):
-    assert split in ['Training', 'Validation']
-    
+def prepare_single(args, scenes):
     for scene in tqdm(scenes):
         save_path = os.path.join(args.save_path, scene)
         if os.path.exists(os.path.join(save_path, 'tsdf_16.npz')):
             continue
         if not os.path.exists(save_path):
             os.mkdir(save_path)
-        
-        transform = Compose([ToTensor(),
-                            IntrinsicsPoseToProjection(),
+
+        transform = Compose([ResizeImage((640, 480)),
+                                    ToTensor(),
+                                    IntrinsicsPoseToProjection(),
                                   ])
-        dataset = ARKitSimpleLoader(args.data_path, scene, transform, split)
+        dataset = ScanNetSimpleDataset(args.data_path, scene, transform)
+
         dataloader = torch.utils.data.DataLoader(dataset, batch_size=None,
                                              batch_sampler=None, num_workers=args.num_workers)
         
@@ -155,7 +157,7 @@ def prepare_single(args, scenes, split='Training'):
                 print("{}: read frame {}/{}".format(scene, str(i), str(len(dataset))))
             if frame['valid'] == True:
                 frame_list.append(frame)
-                id_list.append(frame['id'])
+                id_list.append(int(frame['id']))
         frame_list = sorted(frame_list, key=lambda x: x['id'])
         id_list.sort()
         
@@ -168,7 +170,6 @@ def prepare_single(args, scenes, split='Training'):
         json.dump(info, open(info_path, 'w'))
         
         for voxel_size in [4,8,16]:
-        #for voxel_size in [2, 4, 8]:
             fuse_scene(args, scene, frame_list, voxel_size)
 
 
@@ -205,30 +206,21 @@ def main(args):
     if not os.path.exists(args.save_path):
         os.mkdir(args.save_path)
     
+    scenes = []
+    scenes += [scene for scene in os.listdir(os.path.join(args.data_path, 'scans'))]
+    scenes += [scene for scene in os.listdir(os.path.join(args.data_path, 'scans_test'))]
+    scenes.sort()
+
     all_proc = args.n_proc * args.n_gpu
     ray.init(num_cpus=all_proc * (args.num_workers + 1), num_gpus=args.n_gpu)
-    
-    scenes_training = [scene for scene in os.listdir(os.path.join(args.data_path, '3dod', 'Training'))]
-    scenes_training.sort()
-    
-    files = split_list(scenes_training, all_proc)
+    files = split_list(scenes, all_proc)
     ray_worker_ids = []
     for w_idx in range(all_proc):
-        ray_worker_ids.append(prepare_single.remote(args, files[w_idx], split='Training'))
-    results = ray.get(ray_worker_ids)
-    #prepare_single(args, scenes_training, split='Training')
+        ray_worker_ids.append(prepare_single.remote(args, files[w_idx]))
 
-        
-    scenes_validation = [scene for scene in os.listdir(os.path.join(args.data_path, '3dod', 'Validation'))]
-    scenes_validation.sort()
+    results = ray.get(ray_worker_ids)
     
-    files = split_list(scenes_validation, all_proc)
-    ray_worker_ids = []
-    for w_idx in range(all_proc):
-        ray_worker_ids.append(prepare_single.remote(args, files[w_idx], split='Validation'))
-    results = ray.get(ray_worker_ids)
-    #prepare_single(args, scenes_validation, split='Validation')
-
+    #prepare_single(args, scenes)
 
 
 

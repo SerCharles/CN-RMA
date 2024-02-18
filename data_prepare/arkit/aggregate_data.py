@@ -1,3 +1,11 @@
+# Modified from
+# https://github.com/open-mmlab/mmdetection3d/blob/main/tools/dataset_converters/scannet_data_utils.py
+# Copyright (c) OpenMMLab, Inc. and its affiliates.
+"""Aggregate ARKitScenes data into a pkl file for mmlab usage
+Usage example: python ./aggregate_data.py
+"""
+
+
 import json 
 import mmcv
 import numpy as np

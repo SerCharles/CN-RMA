@@ -1,5 +1,7 @@
-# TODO: Explain 8 corners logic at the top and use it consistently
-# Add comments of explanation
+# Modified from
+# https://github.com/apple/ARKitScenes/blob/main/threedod/benchmark_scripts/utils/box_utils.py
+# Copyright (c) Apple, Inc. and its affiliates.
+'''Util codes used in ARKitScenes data processing'''
 
 import numpy as np
 import scipy.spatial

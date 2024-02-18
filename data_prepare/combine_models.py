@@ -1,3 +1,7 @@
+'''Checkpoint modification, including modifying the Atlas checkpoint for mmlab usage, 
+and combining the Atlas and FCAF3D checkpoints for finetuning
+'''
+
 import argparse
 import torch
 

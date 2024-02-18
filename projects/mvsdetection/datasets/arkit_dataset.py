@@ -1,3 +1,10 @@
+# Modified from
+# https://github.com/open-mmlab/mmdetection3d/blob/main/mmdet3d/datasets/scannet_dataset.py
+# Copyright (c) OpenMMLab, Inc. and its affiliates.
+"""ARKitScenes Dataset
+"""
+
+
 import numpy as np 
 import os 
 import torch 
@@ -11,7 +18,6 @@ from torch.utils.data import Dataset
 from mmdet.datasets import DATASETS 
 from mmdet3d.datasets import Custom3DDataset 
 from mmdet3d.core.bbox import DepthInstance3DBoxes 
-from projects.mvsdetection.utils import save_results
 from projects.mvsdetection.datasets.tsdf import TSDF
 
 def convert_angle_axis_to_matrix3(angle_axis):
@@ -236,32 +242,4 @@ class AtlasARKitDataset(Custom3DDataset):
         return example 
     
     def evaluate(self, outputs, voxel_size=0.04, save_path='./work_dir', logger=None):
-        """
-        Evaluate te results 
-        Args:
-            outputs [array of dicts]:
-            {
-                loss [torch float]: [total_loss]
-                log_vars [dict of losses]: [all the sub losses]
-                num_samples [int]: [the batch size]
-                results [dict]:
-                {
-                    scene_name [str]: [scene_name]
-                    origin [list, 3]: [origin of the predicted partial volume]
-                    scene_tsdf [numpy float list]: [predicted tsdf volume]
-                }
-            }
-        """
-        '''
-        if not os.path.exists(save_path):
-            os.makedirs(save_path)
-        for output in outputs:
-            scene_id = output['scene']
-            tsdf_pred = output['scene_tsdf']
-            mesh_pred = tsdf_pred.get_mesh()
-            if not os.path.exists(os.path.join(save_path, scene_id)):
-                os.makedirs(os.path.join(save_path, scene_id))
-            tsdf_pred.save(os.path.join(save_path, scene_id, scene_id + '.npz'))
-            mesh_pred.export(os.path.join(save_path, scene_id, scene_id + '.ply'))
-        '''
         return {}

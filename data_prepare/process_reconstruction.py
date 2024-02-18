@@ -1,4 +1,5 @@
-#Process the reconstructed pointclouds for FCAF3D
+'''Process the reconstructed pointclouds to mmlab vertice version, to be trained for FCAF3D
+'''
 
 import csv
 import numpy as np

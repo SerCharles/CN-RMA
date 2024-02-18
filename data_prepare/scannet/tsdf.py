@@ -4,6 +4,7 @@
 """TSDFFusion and TSDF classes
 """
 
+
 from matplotlib.cm import get_cmap as colormap
 import numpy as np
 from skimage import measure
@@ -215,7 +216,7 @@ class TSDF():
         if tsdf_vol.min()>=0 or tsdf_vol.max()<=0:
             return trimesh.Trimesh(vertices=np.zeros((0,3)))
 
-        verts, faces, _, _ = measure.marching_cubes_lewiner(tsdf_vol, level=0)
+        verts, faces, _, _ = measure.marching_cubes(tsdf_vol, level=0)
 
         verts_ind = np.round(verts).astype(int)
         verts = verts * self.voxel_size + self.origin.cpu().numpy()

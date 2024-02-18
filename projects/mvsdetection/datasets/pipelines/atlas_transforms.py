@@ -1,21 +1,10 @@
-# This file is derived from [Atlas](https://github.com/magicleap/Atlas).
-# Originating Author: Zak Murez (zak.murez.com)
-# Modified for [NeuralRecon](https://github.com/zju3dv/NeuralRecon) by Yiming Xie and Jiaming Sun.
+# Modified from
+# https://github.com/magicleap/Atlas/blob/master/atlas/transforms.py
+# Copyright (c) MagicLeap, Inc. and its affiliates.
+"""Transforms for Atlas Reconstruction
+"""
 
-# Original header:
-# Copyright 2020 Magic Leap, Inc.
 
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-
-#     http://www.apache.org/licenses/LICENSE-2.0
-
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 
 from PIL import Image, ImageOps
 import numpy as np
@@ -99,45 +88,11 @@ class AtlasResizeImage(object):
             intrinsics[1, :] /= (h / self.size[1])
             data['imgs'][i] = np.array(im, dtype=np.float32)
             data['intrinsics'][i] = intrinsics
-            
-            #暴力把depth缩放为1/4，方便和特征提取后的feature map对应
-            if 'depths' in data.keys():
-                new_size = (self.size[0] // 4, self.size[1] // 4)
-                depth = data['depths'][i]
-                depth = cv2.resize(depth, new_size, interpolation=cv2.INTER_NEAREST)
-                data['depths'][i] = np.array(depth, dtype=np.float32)
-
         return data
 
     def __repr__(self):
         return self.__class__.__name__ + '(size={0})'.format(self.size)
     
-    
-@PIPELINES.register_module()
-class AtlasResizeImageRScan(object):
-    """ Resize everything to given size.
-
-    Intrinsics are assumed to refer to image prior to resize.
-    After resize everything (ex: depth) should have the same intrinsics
-    """
-
-    def __init__(self, size):
-        self.size = size
-
-    def __call__(self, data):
-        for i in range(len(data['imgs'])):
-            im = data['imgs'][i]
-            intrinsics = data['intrinsics'][i]
-            w, h = im.size
-            im = im.resize(self.size, Image.BILINEAR)
-            intrinsics[0, :] /= (w / self.size[0])
-            intrinsics[1, :] /= (h / self.size[1])
-            data['imgs'][i] = np.array(im, dtype=np.float32)
-            data['intrinsics'][i] = intrinsics
-        return data
-
-    def __repr__(self):
-        return self.__class__.__name__ + '(size={0})'.format(self.size)
 
 @PIPELINES.register_module()
 class AtlasIntrinsicsPoseToProjection(object):

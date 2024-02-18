@@ -1,3 +1,11 @@
+# Modified from
+# https://github.com/SamsungLabs/fcaf3d/blob/master/mmdet3d/models/dense_heads/fcaf3d_neck_with_head.py
+# Copyright (c) Samsung, Inc. and its affiliates.
+"""nms function used for post processing bboxes to get final results
+pc_nms function in FCAF3D usually fails, so I modify the nms function as an offline version, to save time
+Usage example: python ./nms_bbox.py
+"""
+
 import os
 import argparse 
 import numpy as np

@@ -1,9 +1,14 @@
+# Modified from
+# https://github.com/apple/ARKitScenes/blob/main/threedod/benchmark_scripts/utils/visual_utils.py
+# Copyright (c) Apple, Inc. and its affiliates.
+"""Visualize Object Detection Results
+Usage example: python ./visualize_results.py
+"""
+
+
 import os
-import sys
 import numpy as np
-from plyfile import PlyData, PlyElement
 import matplotlib.pyplot as plt
-import glob
 import trimesh
 import argparse
 
@@ -31,14 +36,6 @@ def load_scene_ids_scannet(data_path, type):
             scene_ids.append(scene_id)
     scene_ids.sort()
     return scene_ids
-
-def load_scene_ids_3rscan(data_path, type):
-    path = os.path.join(data_path, 'meta_data', '3rscan_' + type + '.txt')
-    with open(path, 'r') as f:
-        scene_ids = f.read().split('\n')
-    scene_ids.sort()
-    return scene_ids
-
 
 def rotate_points_along_z(points, angle):
     """Rotation clockwise
@@ -290,7 +287,6 @@ def main():
 
     parser.add_argument("--dataset", type=str, default='arkit')
     #parser.add_argument("--data_path", type=str, default='/data1/sgl/ScanNet')
-    #parser.add_argument("--data_path", type=str, default='/data1/sgl/3RScan')
     parser.add_argument("--data_path", type=str, default='/data1/sgl/ARKit')
 
     parser.add_argument("--post_fix", type=str, default='_atlas_bbox')
@@ -300,42 +296,20 @@ def main():
     
     if args.dataset == 'scannet':
         scene_ids = load_scene_ids_scannet(args.data_path, 'val')
-    elif args.dataset == '3rscan':
-        scene_ids = load_scene_ids_3rscan(args.data_path, 'val')
     elif args.dataset == 'arkit':
         scene_ids = os.listdir(os.path.join(args.data_path, '3dod', 'Validation'))
     scene_ids.sort()
-    
-    #scene_ids=['scene0015_00', 'scene0019_00', 'scene0030_00', 'scene0050_00', 'scene0064_00', 'scene0084_00', 'scene0088_03', 'scene0100_01', 'scene0187_00', 'scene0217_00', 'scene0251_00', 'scene0389_00', 'scene0490_00', 'scene0559_01', 'scene0568_00', 'scene0598_00', 'scene0599_02', 'scene0609_01', 'scene0616_01', 'scene0651_00', 'scene0658_00', 'scene0664_00', 'scene0701_01']
-    #scene_ids = ['scene0011_00', 'scene0304_00', 'scene0568_00']
-    #scene_ids = ['40753679', '40777073', '40809741', '41069021']
-    #scene_ids = ['40753679', '40753686', '40776203']
-    #scene_ids = ['41069021']
-    
+
     for scene_id in scene_ids:
         if args.dataset == 'scannet':
             meta_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '.txt')
             mesh_path = os.path.join(args.data_path, 'scans', scene_id, scene_id + '_vh_clean_2.ply')
-        elif args.dataset == '3rscan':
-            mesh_path = os.path.join(args.data_path, 'atlas_tsdf', scene_id, 'mesh_04.ply')
-            meta_path = None
         elif args.dataset == 'arkit':
             mesh_path = os.path.join(args.data_path, '3dod', 'Validation', scene_id, scene_id + '_3dod_mesh.ply')
-            #mesh_path = os.path.join(args.data_path, '3dod', 'Training', scene_id, scene_id + '_3dod_mesh.ply')
-            #mesh_path = os.path.join(args.data_path, 'atlas_tsdf', scene_id, 'mesh_04.ply')
             meta_path = None
-        
         
         bbox_path = os.path.join(args.save_path, scene_id, scene_id + args.post_fix + '.npz')
         save_path = os.path.join(args.save_path, scene_id, scene_id + args.post_fix + '.ply')
-
-        '''
-        gt_path = os.path.join(args.data_path, 'arkit_instance_data', scene_id + '_aligned_bbox.npy')
-        if not os.path.exists(os.path.join(args.save_path, scene_id)):
-            os.makedirs(os.path.join(args.save_path, scene_id))
-        generate_gt(gt_path, bbox_path, dataset=args.dataset)
-        '''
-        
         if not os.path.exists(os.path.join(args.save_path, scene_id)):
             continue
         
