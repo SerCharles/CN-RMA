@@ -9,10 +9,8 @@ import argparse
 import json
 import os
 
-import open3d as o3d
 import numpy as np
 import torch
-import trimesh
 
 from arkit_simple_loader import ARKitSimpleLoader
 from transforms import *

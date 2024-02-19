@@ -1,10 +1,8 @@
 '''Process the reconstructed pointclouds to mmlab vertice version, to be trained for FCAF3D
 '''
 
-import csv
 import numpy as np
 import os
-import glob
 from plyfile import PlyData
 import argparse
 

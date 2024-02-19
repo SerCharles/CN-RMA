@@ -6,13 +6,10 @@ Usage example: python ./evaluate_mesh.py
 """
 
 
-import sys
 import argparse
 import json
 import os
 import numpy as np
-import torch
-import trimesh
 import open3d as o3d
 
 

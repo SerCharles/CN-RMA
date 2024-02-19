@@ -14,7 +14,6 @@ import torch
 from mmdet3d.core.evaluation import indoor_eval
 from mmdet3d.core.bbox import get_box_type
 from mmdet3d.core.bbox import DepthInstance3DBoxes
-from glob import glob 
 
 def evaluate_bbox(dataset, data_path, result_path, postfix):
     iou_thr=(0.25, 0.5)

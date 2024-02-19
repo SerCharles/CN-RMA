@@ -62,7 +62,7 @@ class ScanNetSimpleDataset(torch.utils.data.Dataset):
             dict containg metadata plus the loaded image
         """
         idx = str(i).zfill(5)
-        intrinsic_path = os.path.join(self.data_path, 'posed_images', self.scene_id, "intrinsic_color.txt")
+        intrinsic_path = os.path.join(self.data_path, 'posed_images', self.scene_id, "intrinsic.txt")
         extrinsic_path = os.path.join(self.data_path, 'posed_images', self.scene_id, idx + ".txt")
         image_path = os.path.join(self.data_path, 'posed_images', self.scene_id, idx + ".jpg")
         depth_path = os.path.join(self.data_path, 'posed_images', self.scene_id, idx + ".png")

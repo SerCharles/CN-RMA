@@ -112,25 +112,25 @@ def main():
         help='The maximum number of the points.')
     parser.add_argument(
         '--output_folder',
-        default='./scannet_instance_data',
+        default='/home/sgl/MVSDetection/data/scannet/scannet_instance_data',
         help='output folder of the result.')
     parser.add_argument(
-        '--train_scannet_dir', default='scans', help='scannet data directory.')
+        '--train_scannet_dir', default='/home/sgl/MVSDetection/data/scannet/scans', help='scannet data directory.')
     parser.add_argument(
         '--test_scannet_dir',
-        default='scans_test',
+        default='/home/sgl/MVSDetection/data/scannet/scans_test',
         help='scannet data directory.')
     parser.add_argument(
         '--label_map_file',
-        default='meta_data/scannetv2-labels.combined.tsv',
+        default='/home/sgl/MVSDetection/data/scannet/meta_data/scannetv2-labels.combined.tsv',
         help='The path of label map file.')
     parser.add_argument(
         '--train_scan_names_file',
-        default='meta_data/scannet_train.txt',
+        default='/home/sgl/MVSDetection/data/scannet/meta_data/scannet_train.txt',
         help='The path of the file that stores the scan names.')
     parser.add_argument(
         '--test_scan_names_file',
-        default='meta_data/scannetv2_test.txt',
+        default='/home/sgl/MVSDetection/data/scannet/meta_data/scannetv2_test.txt',
         help='The path of the file that stores the scan names.')
     args = parser.parse_args()
     batch_export(
