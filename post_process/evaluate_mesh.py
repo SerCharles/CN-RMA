@@ -15,7 +15,7 @@ import open3d as o3d
 
 
 def parse_args(): 
-    parser = argparse.ArgumentParser(description="NeuralRecon ScanNet Testing")
+    parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, default='arkit')
     parser.add_argument("--data_path", type=str, default='/data1/sgl/ARKit')
     parser.add_argument("--result_path", type=str, default='/data1/sgl/work_dirs_atlas/arkit_recon/results')

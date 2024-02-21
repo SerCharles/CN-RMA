@@ -83,6 +83,7 @@ def nms_bboxes(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--result_path", type=str, default='/data1/sgl/work_dirs_atlas/arkit_fcaf3d_stage3_trial_2/results')
-    parser.add_argument("--postfix", type=str, default='_atlas_bbox.npz')
+    parser.add_argument("--postfix", type=str, default='_atlas_bbox.npz',
+                        help='The postfix of result bounding box filename, for example, if the postfix is atlas_bbox, the bounding box filename will be scenexxxx_xx_atlas_bbox.npz (the visualized mesh filename will be scenexxxx_xx_atlas_bbox.ply).')
     args = parser.parse_args()
     nms_bboxes(args)

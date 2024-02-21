@@ -29,9 +29,8 @@ NEUS_THRESHOLD = 0.05
 DEPTH_POINTS = None
 
 #middle data save utils
-MIDDLE_SAVE_PATH='/data1/sgl/ARKit/atlas_middle_data_16016064'
-#MIDDLE_VISUALIZE_PATH='/data1/sgl/work_dirs_atlas/test_2/vis'
-MIDDLE_VISUALIZE_PATH=None
+MIDDLE_SAVE_PATH = '/data1/sgl/ARKit/atlas_middle_data_16016064'
+MIDDLE_VISUALIZE_PATH = None
 
 
 optimizer = dict(type='AdamW', lr=0.001, weight_decay=0.0001)
@@ -41,9 +40,12 @@ lr_config = dict(policy='step', warmup=None, step=[27, 36])
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = '/data1/sgl/work_dirs_atlas/test_2'
+R50_path = '/home/sgl/work_dirs_atlas/R-50.pth'
 save_path = work_dir + '/results'
-load_from = '/data1/sgl/work_dirs_atlas/arkit_only_atlas.pth'
+load_from = None
 resume_from = None
+
+
 
 
 workflow = [('train', 1)]
@@ -60,7 +62,7 @@ log_config = dict(
 
 
 train_pipeline = [
-    dict(type='AtlasResizeImageRScan', size=((640, 480))),
+    dict(type='AtlasResizeImage', size=((640, 480))),
     dict(type='AtlasToTensor'),
     dict(type='AtlasTransformSpaceDetection', voxel_dim=VOXEL_DIM_TRAIN, 
          origin=[0, 0, 0], test=False, mode='middle'),
@@ -69,7 +71,7 @@ train_pipeline = [
 ]
 
 test_pipeline = [
-    dict(type='AtlasResizeImageRScan', size=((640, 480))),
+    dict(type='AtlasResizeImage', size=((640, 480))),
     dict(type='AtlasToTensor'),
     dict(type='AtlasTransformSpaceDetection', voxel_dim=VOXEL_DIM_TEST, 
          origin=[0, 0, 0], test=True, mode='middle'),    
@@ -105,7 +107,7 @@ data = dict(
     test=dict(
         type='AtlasARKitDataset',
         data_root='./data/arkit',
-        ann_file='./data/arkit/arkit_infos_val.pkl',
+        ann_file='./data/arkit/arkit_infos_train.pkl',
         classes=class_names, 
         pipeline=test_pipeline, 
         test_mode=True,
@@ -155,7 +157,7 @@ model = dict(
         out_channels=256,
         norm='BN',
         fuse_type='sum',
-        pretrained='/home/sgl/work_dirs_atlas/R-50.pth'
+        pretrained=R50_path
     ),
     feature_2d=dict(
         type='AtlasFPNFeature',

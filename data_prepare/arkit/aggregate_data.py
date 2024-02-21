@@ -288,7 +288,7 @@ def create_indoor_info_file(data_path, save_path, workers=4):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Data converter arg parser')
+    parser = argparse.ArgumentParser()
     parser.add_argument('--data_path', type=str, default='./data/arkit', help='specify the root path of dataset')
     parser.add_argument('--save_path', type=str, default='./data/arkit', help='name of info pkl')
     #parser.add_argument('--data_path', type=str, default='/data1/sgl/ARKit', help='specify the root path of dataset')

@@ -40,6 +40,7 @@ lr_config = dict(policy='step', warmup=None, step=[27, 36])
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = '/data1/sgl/test'
+R50_path = '/home/sgl/work_dirs_atlas/R-50.pth'
 save_path = work_dir + '/results'
 load_from = '/data1/sgl/CN-RMA_results/work_dirs/arkit_atlas_fcaf3d_pretrained.pth'
 resume_from = None
@@ -152,7 +153,7 @@ model = dict(
         out_channels=256,
         norm='BN',
         fuse_type='sum',
-        pretrained='/data1/sgl/CN-RMA_results/work_dirs/R-50.pth'
+        pretrained=R50_path
     ),
     feature_2d=dict(
         type='AtlasFPNFeature',

@@ -50,21 +50,21 @@ The required pretrained weights are put at here(TODO).
   ├── train.py
   ```
 
-##  Train and Val
+##  How to Run
 
-To evaluate our method on ScanNet, you can download the pretrained checkpoint, set the 'work_dir' of `projects/configs/mvsdetection/ray_marching_scannet.py` to your desire path, and run:
-
-```shell
-bash dist_train.sh projects/configs/mvsdetection/ray_marching_scannet.py {scannet_best.pth} 4
-```
-
-Similarly, to evaluate on ARKitScenes, you should donwload the checkpoint, set the 'work_dir' of `projects/configs/mvsdetection/ray_marching_arkit.py` to your desire path, and run:
+To evaluate our method on ScanNet, you can download the pre-trained checkpoint, set the 'work_dir' of `projects/configs/mvsdetection/ray_marching_scannet.py` to your desired path, and run:
 
 ```shell
-bash dist_train.sh projects/configs/mvsdetection/ray_marching_arkit.py {arkit_best.pth} 4
+bash dist_test.sh projects/configs/mvsdetection/ray_marching_scannet.py {scannet_best.pth} 4
 ```
 
-After this, you should do nms post processing to the data by running:
+Similarly, to evaluate on ARKitScenes, you should download the checkpoint, set the 'work_dir' of `projects/configs/mvsdetection/ray_marching_arkit.py` to your desired path, and run:
+
+```shell
+bash dist_test.sh projects/configs/mvsdetection/ray_marching_arkit.py {arkit_best.pth} 4
+```
+
+After this, you should do nms post-processing to the data by running:
 
 ```shell
 python ./post_process/nms_bbox.py --result_path {your_work_dir}/results
@@ -84,7 +84,7 @@ And you can visualize the results by running
 ./post_process/visualize_results.py --dataset {arkit/scannet} --data_path {your_arkit_or_scannet_source_path} --save_path {your_work_dir}/results
 ```
 
-if the nms fails, you can discover many close bboxes on the visualized results, then you can run the nms again.
+if the nms fails, you can discover many bounding boxes very close to each other on the visualized results, then you can run the nms again.
 
 
 

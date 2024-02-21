@@ -38,8 +38,8 @@ lr_config = dict(policy='step', warmup=None, step=[300], gamma=0.1)
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = '/home/sgl/work_dirs_atlas/test'
+R50_path = '/home/sgl/work_dirs_atlas/R-50.pth'
 save_path = work_dir + '/results'
-#load_from = '/home/sgl/work_dirs_atlas/switch.pth'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]
@@ -140,7 +140,7 @@ model = dict(
         out_channels=256,
         norm='BN',
         fuse_type='sum',
-        pretrained='/home/sgl/work_dirs_atlas/R-50.pth'
+        pretrained=R50_path
     ),
     feature_2d=dict(
         type='AtlasFPNFeature',

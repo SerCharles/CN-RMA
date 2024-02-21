@@ -36,6 +36,7 @@ lr_config = dict(policy='step', warmup=None, step=[80, 110])
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = '/home/sgl/work_dirs_atlas/atlas_ray_marching_300_005'
+R50_path = '/home/sgl/work_dirs_atlas/R-50.pth'
 save_path = work_dir + '/results'
 load_from = '/home/sgl/work_dirs_atlas/ray_marching_neus_300_005.pth'
 resume_from = None
@@ -148,7 +149,7 @@ model = dict(
         out_channels=256,
         norm='BN',
         fuse_type='sum',
-        pretrained='/home/sgl/work_dirs_atlas/R-50.pth'
+        pretrained=R50_path
     ),
     feature_2d=dict(
         type='AtlasFPNFeature',

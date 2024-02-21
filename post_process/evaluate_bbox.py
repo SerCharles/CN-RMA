@@ -104,6 +104,7 @@ if __name__ == '__main__':
     parser.add_argument("--dataset", type=str, default='arkit')
     parser.add_argument("--data_path", type=str, default='/data1/sgl/ARKit')
     parser.add_argument("--result_path", type=str, default='/data1/sgl/work_dirs_atlas/arkit_fcaf3d_stage3_trial_2/results')
-    parser.add_argument("--postfix", type=str, default='_atlas_bbox')
+    parser.add_argument("--postfix", type=str, default='_atlas_bbox',
+                        help='The postfix of bounding box filename, for example, if the postfix is atlas_bbox, the bounding box filename will be scenexxxx_xx_atlas_bbox.npz (the visualized mesh filename will be scenexxxx_xx_atlas_bbox.ply).')
     args = parser.parse_args()
     evaluate_bbox(args.dataset, args.data_path, args.result_path, args.postfix)

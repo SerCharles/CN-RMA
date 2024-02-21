@@ -283,13 +283,14 @@ def generate_gt(box_path, save_path, dataset='scannet'):
     
 
 def main():
-    parser = argparse.ArgumentParser(description="NeuralRecon ScanNet Testing")
+    parser = argparse.ArgumentParser()
 
     parser.add_argument("--dataset", type=str, default='arkit')
     #parser.add_argument("--data_path", type=str, default='/data1/sgl/ScanNet')
     parser.add_argument("--data_path", type=str, default='/data1/sgl/ARKit')
 
-    parser.add_argument("--post_fix", type=str, default='_atlas_bbox')
+    parser.add_argument("--post_fix", type=str, default='_atlas_bbox', 
+                        help='The postfix of bounding box filename, for example, if the postfix is atlas_bbox, the bounding box filename will be scenexxxx_xx_atlas_bbox.npz (the visualized mesh filename will be scenexxxx_xx_atlas_bbox.ply).')
     parser.add_argument("--save_path", type=str, default='/data1/sgl/CN-RMA_results/arkit_results')
 
     args = parser.parse_args()

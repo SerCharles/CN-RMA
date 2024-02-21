@@ -37,23 +37,26 @@ def switch_atlas_ckpt(atlas_path, full_model_path, result_path):
     torch.save(model_mine_full, result_path)
     
 def combine_atlas_fcaf3d(atlas_path, fcaf3d_path, full_model_path, result_path):
-    if atlas_path != None:
+    if atlas_path != 'none':
         model_atlas = torch.load(atlas_path)['state_dict']
-    if fcaf3d_path != None: 
+    if fcaf3d_path != 'none': 
         model_fcaf3d = torch.load(fcaf3d_path)['state_dict']
     model_mine = torch.load(full_model_path)['state_dict']
     
-    if atlas_path == None:
+    if atlas_path == 'none':
         atlas_mode = 'none'
     elif atlas_path.endswith('.ckpt'):
         atlas_mode = 'ckpt'
     else:
         atlas_mode = 'pth'
         
-    if fcaf3d_path == None:
+    if fcaf3d_path == 'none':
         fcaf3d_mode = 'none'
     else:
         fcaf3d_mode = 'fcaf3d'
+    
+    print('atlas_mode:', atlas_mode, 'fcaf3d_mode:', fcaf3d_mode)
+
     
     new_state_dict = model_mine.copy()
     for key in model_mine.keys():

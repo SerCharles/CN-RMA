@@ -30,9 +30,8 @@ NEUS_THRESHOLD = 0.05
 DEPTH_POINTS = None
 
 #middle data save utils
-MIDDLE_SAVE_PATH='/data1/sgl/ARKit/atlas_middle_data_16016064'
-#MIDDLE_VISUALIZE_PATH='/data1/sgl/work_dirs_atlas/test_2/vis'
-MIDDLE_VISUALIZE_PATH=None
+MIDDLE_SAVE_PATH = '/data1/sgl/ARKit/atlas_middle_data_16016064'
+MIDDLE_VISUALIZE_PATH = None
 
 
 
@@ -43,8 +42,9 @@ lr_config = dict(policy='step', warmup=None, step=[80, 110])
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = '/data1/sgl/work_dirs_atlas/test_2'
+R50_path = '/home/sgl/work_dirs_atlas/R-50.pth'
 save_path = work_dir + '/results'
-load_from = '/data1/sgl/work_dirs_atlas/arkit_only_scannet.pth'
+load_from = None
 resume_from = None
 
 
@@ -107,7 +107,7 @@ data = dict(
     test=dict(
         type='AtlasScanNetDataset',
         data_root='./data/scannet',
-        ann_file='./data/scannet/scannet_infos_val.pkl',
+        ann_file='./data/scannet/scannet_infos_train.pkl',
         classes=class_names, 
         pipeline=test_pipeline, 
         test_mode=True,
@@ -157,7 +157,7 @@ model = dict(
         out_channels=256,
         norm='BN',
         fuse_type='sum',
-        pretrained='/home/sgl/work_dirs_atlas/R-50.pth'
+        pretrained=R50_path
     ),
     feature_2d=dict(
         type='AtlasFPNFeature',

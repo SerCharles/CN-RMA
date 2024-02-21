@@ -166,7 +166,7 @@ def create_indoor_info_file(data_path, save_path, workers=4):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Data converter arg parser')
+    parser = argparse.ArgumentParser()
     parser.add_argument('--data_path', type=str, default='./data/scannet', help='specify the root path of dataset')
     parser.add_argument('--save_path', type=str, default='./data/scannet', help='name of info pkl')
     parser.add_argument('--workers', type=int, default=4, help='number of threads to be used')

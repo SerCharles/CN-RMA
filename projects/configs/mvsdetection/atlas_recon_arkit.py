@@ -38,12 +38,12 @@ lr_config = dict(policy='step', warmup=None, step=[300], gamma=0.1)
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = '/data1/sgl/work_dirs_atlas/arkit_recon'
+R50_path = '/home/sgl/work_dirs_atlas/R-50.pth'
 save_path = work_dir + '/results'
-#load_from = '/home/sgl/work_dirs_atlas/switch.pth'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]
-total_epochs = 100
+total_epochs = 80
 evaluation = dict(interval=3000, voxel_size=VOXEL_SIZE, save_path=work_dir+'/results')
 runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
 checkpoint_config = dict(interval=5)
@@ -140,7 +140,7 @@ model = dict(
         out_channels=256,
         norm='BN',
         fuse_type='sum',
-        pretrained='/home/sgl/work_dirs_atlas/R-50.pth'
+        pretrained=R50_path
     ),
     feature_2d=dict(
         type='AtlasFPNFeature',
