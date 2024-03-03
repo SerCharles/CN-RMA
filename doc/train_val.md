@@ -1,14 +1,14 @@
 # Training and Validation procedures of CN-RMA
 
-The training procedure is complicated, if you just want to get the results for comparison, or want to reproduce our result, I recommend you directly download the results, or directly use our pre-trained weights to validate.(TODO)
+The training procedure is complicated, if you just want to get the results for comparison, or want to reproduce our result, I recommend you directly download the for [ScanNet](https://cloud.tsinghua.edu.cn/f/c4cb78b7d935467c8855/?dl=1) and [ARKitScenes](https://cloud.tsinghua.edu.cn/f/4c77c67123ab46b58605/?dl=1), or directly use our pre-trained weights for [ScanNet](https://cloud.tsinghua.edu.cn/f/b518872d3f11483aa121/?dl=1) and [ARKitScenes](https://cloud.tsinghua.edu.cn/f/17df2aa67e50407bb555/?dl=1) to validate.
 
 Before training and validating our method, please ensure you have successfully built up the environment and processed the data.
 
 ## Step 1: Pretraining the Atlas reconstruction network
 
-If you want to skip step 1, you can directly download our pre-trained weights on ScanNet and ARKitScenes.(TODO)
+If you want to skip step 1, you can directly download our pre-trained weights on [ScanNet](https://cloud.tsinghua.edu.cn/f/737c5266820641fd8d66/?dl=1) and [ARKitScenes](https://cloud.tsinghua.edu.cn/f/047dd068d71c48f8b391/?dl=1).
 
-First, you should download the resnet weights: R-50.pth, and change the `R50_path` variable of the `projects/configs/mvsdetection/atlas_recon_scannet.py` and the `projects/configs/mvsdetection/atlas_recon_arkit.py`.
+First, you should download the resnet weights: [R-50.pth](https://cloud.tsinghua.edu.cn/f/554b00339fb84077975b/?dl=1), and change the `R50_path` variable of the `projects/configs/mvsdetection/atlas_recon_scannet.py` and the `projects/configs/mvsdetection/atlas_recon_arkit.py`.
 
 Second, you should construct a work directory to store your results and checkpoints, and change the `work_dir` variable of the config files.
 
@@ -28,13 +28,13 @@ bash dist_train.sh ./projects/configs/mvsdetection/atlas_recon_arkit.py 4
 
 ## Step 2: Pretraining the FCAF3D detection network
 
-If you want to skip Steps 1 and 2, you can directly download our pre-trained base weights on ScanNet and ARKitScenes.(TODO)
+If you want to skip Steps 1 and 2, you can directly download our pre-trained base weights on [ScanNet](https://cloud.tsinghua.edu.cn/f/14408c8a12324f03b4bb/?dl=1) and [ARKitScenes](https://cloud.tsinghua.edu.cn/f/8163c4bd04d248df9d86/?dl=1).
 
 For convenience, we **dump the point clouds with features** based on our pre-trained reconstruction network and our ray marching method, and **directly use the FCAF3D code** to pre-train the FCAF3D network. 
 
 ### 2.1 Dump the point clouds with features
 
-First, you need to convert your pre-trained reconstruction weight to a universal version. Before this, you should `download` the checkpoint template (PATH)(TODO).
+First, you need to convert your pre-trained reconstruction weight to a universal version. Before this, you should `download` the checkpoint templates for  [ScanNet](https://cloud.tsinghua.edu.cn/f/14408c8a12324f03b4bb/?dl=1) and [ARKitScenes](https://cloud.tsinghua.edu.cn/f/8163c4bd04d248df9d86/?dl=1).
 
 ```shell
 python ./data_prepare/combine_models.py --atlas_model_path {your_pretrained_recon_ckpt_path} --fcaf3d_model_path none --full_model_path {template_path} --result_path {your_converted_weight_path} --result_type full
@@ -102,7 +102,7 @@ python ./data_prepare/combine_models.py --atlas_model_path {your_pretrained_reco
 
 ## Step 3: Finetuning the full network
 
-After Steps 1 and 2, you should have successfully constructed the basis of the step. If you want to skip Steps 1 and 2, you can directly download our pre-trained base weights on ScanNet and ARKitScenes.(TODO)
+After Steps 1 and 2, you should have successfully constructed the basis of the step. If you want to skip Steps 1 and 2, you can directly download our pre-trained base weights on  [ScanNet](https://cloud.tsinghua.edu.cn/f/14408c8a12324f03b4bb/?dl=1) and [ARKitScenes](https://cloud.tsinghua.edu.cn/f/8163c4bd04d248df9d86/?dl=1).
 
 The config files are `./projects/configs/mvsdetection/ray_marching_scannet.py` (ScanNet) and `./projects/configs/mvsdetection/ray_marching_arkit.py` (ARKitScenes). Same as previous steps, you should change the `R50_path`, `work_dir` variables to your desire. Additionally, you should set the `load_from`  variable to the pre-trained base weight path. 
 
@@ -120,7 +120,7 @@ bash dist_train.sh ./projects/configs/mvsdetection/ray_marching_arkit.py 4
 
 ## Step 4: Evaluating the results
 
-To Skip Steps 1, 2, and 3, you can directly download our final checkpoints. (TODO) And you can directly download our final results. (TODO)
+To Skip Steps 1, 2, and 3, you can directly download our final checkpoints for [ScanNet](https://cloud.tsinghua.edu.cn/f/b518872d3f11483aa121/?dl=1) and [ARKitScenes](https://cloud.tsinghua.edu.cn/f/17df2aa67e50407bb555/?dl=1). And you can directly download our final results for [ScanNet](https://cloud.tsinghua.edu.cn/f/c4cb78b7d935467c8855/?dl=1) and [ARKitScenes](https://cloud.tsinghua.edu.cn/f/4c77c67123ab46b58605/?dl=1). 
 
 First, you should get the result bounding boxes (without nms post-processing).
 
