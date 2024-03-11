@@ -1,6 +1,6 @@
 # CN-RMA: Combined Network with Ray Marching Aggregation for 3D Indoor Object Detection from Multi-view Images
 
-This repository is an official implementation of CN-RMA. (TODO:paper link)
+This repository is an official implementation of [CN-RMA](https://arxiv.org/abs/2403.04198). 
 
 ## Results
 
