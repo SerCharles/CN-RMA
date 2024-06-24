@@ -1,6 +1,6 @@
 # CN-RMA: Combined Network with Ray Marching Aggregation for 3D Indoor Object Detection from Multi-view Images
 
-This repository is an official implementation of [CN-RMA](https://arxiv.org/abs/2403.04198). 
+This repository is an official implementation of [CN-RMA](https://arxiv.org/abs/2403.04198).
 
 ## Results
 
@@ -18,15 +18,12 @@ Configuration, data processing and running the entire project is complicated. We
   Linux, Python==3.8, CUDA == 11.3, pytorch == 1.10.0, mmdet3d == 0.15.0, MinkowskiEngine == 0.5.4
 
   This implementation is built based on the [mmdetection3d](https://github.com/open-mmlab/mmdetection3d) framework and can be constructed as the [install.md](./doc/install.md).
-  
 * Data
 
   Follow the mmdet3d to process the ScanNet and ARKitScenes datasets. You can process those datasets following [scannet.md](./doc/scannet.md) and [arkit.md](./doc/arkit.md).
-
 * Pretrained weights
 
   The required pretrained weights are put at [here](https://cloud.tsinghua.edu.cn/d/0b3af9884b7841ae8398/).
-
 * After preparation, you will be able to see the following directory structure:
 
   ```
@@ -96,7 +93,14 @@ Training the network from scratch is complicated. If you want to train the netwo
 If you find this project useful for your research, please consider citing:
 
 ```bibtex
-//TODO
+@InProceedings{Shen_2024_CVPR,
+    author    = {Shen, Guanlin and Huang, Jingwei and Hu, Zhihua and Wang, Bin},
+    title     = {CN-RMA: Combined Network with Ray Marching Aggregation for 3D Indoor Object Detection from Multi-view Images},
+    booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+    month     = {June},
+    year      = {2024},
+    pages     = {21326-21335}
+}
 ```
 
 ## Contact
